@@ -20,3 +20,4 @@ psdistance: psdistance.o psystem.o
 
 clean:
 	rm -rf *.o particles psdistance
+
