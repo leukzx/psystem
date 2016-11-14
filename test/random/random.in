@@ -1,0 +1,12 @@
+time_step 1
+end_time 10
+system_dimensions 10 10 10
+eps 0
+G 1
+integration_method RK4
+interaction_potential LJpotential
+write_to_file output.dat
+write_precision 15
+write_interval 0.1
+particles_input_file 0.dat
+random_particles 20
