@@ -5,7 +5,8 @@
 #include <string>       // std::string, std::to_string
 #include <iomanip>      // std::setprecision
 #include <cfloat>       // DBL_DIG (for output precision)
-
+#include <vector>
+#include "intersections/intersections.h"
 
 class Particle {
  public:
@@ -45,7 +46,8 @@ class PSystem {
     Eigen::Vector3d dimXYZ; // PSystem dimensions
     std::vector<Particle> particles;
 	std::vector<Eigen::Vector3d> vertices;
-	std::vector<std::vector<int> > boundaries(10, std::vector<int>(10,1));
+    //std::vector<std::vector<int> > boundaries(10, std::vector<int>(10,1));
+    std::vector<LineSegment> boundaries;
 
     double EtotInit; //Initial total energy
 
