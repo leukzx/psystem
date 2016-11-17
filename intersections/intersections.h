@@ -36,7 +36,8 @@ class Line {
     Eigen::Vector3d l(); //Direction vector
     Eigen::Vector3d m(); //Moment vector about the origin
     Vector6d lm(); //Plucker coordinates for line
-
+    
+    Line() {};
     Line(Eigen::Vector3d &p0, Eigen::Vector3d &p1): r({p0, p1}) {}
 };
 
@@ -55,6 +56,7 @@ class Plane {
 
 class LineSegment: public Line {
   public:
+    LineSegment() {};  
     LineSegment(Eigen::Vector3d &p0, Eigen::Vector3d &p1): Line(p0, p1) {}
 };
 
@@ -68,6 +70,7 @@ class Triangle: public Plane {
 class Convex {
   public:
     std::vector<Eigen::Vector3d> vertices;
+    Convex() {};
     Convex(std::vector<Eigen::Vector3d>& v): vertices(v) {}
 };
 
@@ -82,3 +85,4 @@ Eigen::Vector3d intersectionPoint(Line& line, Plane& plane);
 Eigen::Vector3d intersectionPoint(LineSegment& ls1, LineSegment& ls2);
 Eigen::Vector3d intersectionPoint(LineSegment& segment, Triangle& tri);
 Eigen::Vector3d intersectionPoint(LineSegment& lSeg, Convex& cnvx);
+std::vector<Eigen::Vector3d> intersectionPointN(LineSegment& lSeg, Convex& cnvx); // Returns cross point and normal vector

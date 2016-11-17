@@ -1,0 +1,5 @@
+g++ -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c main.cpp -o main.o
+g++ -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c -c psystem.cpp -o psystem.o
+g++ main.o psystem.o -o particles
+g++ -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c -c psdistance.cpp -o psdistance.o	
+g++ psdistance.o psystem.o -o psdistance

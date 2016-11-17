@@ -451,6 +451,7 @@ void PSystem::tsForwardEuler(double dt)
 {
     calcAccel();
     for (auto& particle : particles){
+        particle.r0 = particle.r; // save previous position of particle
         particle.r += particle.v * dt;
         particle.v += particle.a * dt;
     }
@@ -458,9 +459,8 @@ void PSystem::tsForwardEuler(double dt)
 
 void PSystem::tsLeapfrog(double dt)
 {
-
-
     for (auto& particle : particles) {
+        particle.r0 = particle.r; // save previous position of particle
         particle.v += particle.a * dt / 2;
         particle.r += particle.v * dt;
     }
@@ -470,7 +470,6 @@ void PSystem::tsLeapfrog(double dt)
     for (auto& particle : particles) {
         particle.v += particle.a * dt / 2;
     }
-
 }
 
 void PSystem::tsRK4(double dt)
@@ -529,6 +528,7 @@ void PSystem::evolve()
     info(precision);
     while ((time + dt) <= endTime) {
         (this->*methodFunction)(dt);
+        checkBoundaries();
         time += dt;
         writeTime += dt;
         nt++;
@@ -547,6 +547,7 @@ void PSystem::evolve()
     if (dt > 0) {
         timeStep = dt;
         (this->*methodFunction)(dt);
+        checkBoundaries();
         time += dt;
         nt++;
         stateToFile(writePr, outFile);
@@ -693,7 +694,7 @@ void PSystem::readParticlesData(std::string fileName)
     isFile.open(fileName);
 
     if (isFile.is_open()){
-        // Search the beggining of the last time step data block
+        // Search the beginning of the last time step data block
         while (std::getline(isFile, line)) {
             sLine = std::stringstream(line);
             sLine >> word;
@@ -794,6 +795,40 @@ void PSystem::readParams(std::string fileName)
             parameters.erase(parameters.begin(), parameters.end());
         }
     } else {
-        std::cout << "Config file " << fileName << " is not found." << std::endl;
+        std::cout << "Configuration file " << fileName << " is not found." << std::endl;
     }
+}
+
+void PSystem::checkBoundaries()
+{
+    /* There may be situations when out of boundary displacement is so large
+     so mirroring position of particle relative to boundary
+     places particle out of another boundary. At least two passes of checks are 
+     needed. */
+    bool xFlag; // Boundary crossing flag
+    std::vector<Eigen::Vector3d> xPointN; // Path and boundary cross point with normal vector at this point
+    Eigen::Vector3d xPoint; // Cross point
+    Eigen::Vector3d n0; // Normal vector to boundary at cross point
+    LineSegment path;
+    Eigen::Vector3d dr; //Out of boundary displacement of particle
+    
+    do {
+        xFlag = false;
+        for (auto& particle : particles) {
+        path = LineSegment(particle.r0, particle.r);
+        for (auto& boundary : boundaries) {
+            xPointN = intersectionPointN(path, boundary);
+            xPoint = xPointN.at(0);
+            n0 = xPointN.at(1);
+            if (!std::isnan(xPoint(0))) {
+                particle.v = particle.v - 2 * particle.v.dot(n0) * n0;
+                dr = particle.r - xPoint;
+                dr = dr - 2 * dr.dot(n0) * n0;
+                particle.r = xPoint + dr;
+                xFlag = true;
+                }
+            }      
+        }
+    } while (xFlag);
+    
 }

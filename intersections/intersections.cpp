@@ -151,6 +151,26 @@ Eigen::Vector3d intersectionPoint(LineSegment& lSeg, Convex& cnvx)
     return point;
 }
 
+std::vector<Eigen::Vector3d> intersectionPointN(LineSegment& lSeg, Convex& cnvx)
+{
+    /*There may be several crossings of such object. Function returns first found point.
+     Errors may occur.*/
+    Triangle triangle;
+    Eigen::Vector3d point;
+    std::vector<Eigen::Vector3d> rn;
+
+    for (uint i = 1 ; i < cnvx.vertices.size(); i = i + 2) {
+        triangle = Triangle(cnvx.vertices[0], cnvx.vertices[i],
+                cnvx.vertices[i+1]);
+        point = intersectionPoint(lSeg, triangle);
+        if (!std::isnan(point(0))) {break;}
+    }
+    rn.push_back(point);
+    rn.push_back(triangle.n0());
+    return rn;
+}
+
+
 bool ifBelongsToLine(Eigen::Vector3d& point, Line& line)
 {
     double shouldBeZero;

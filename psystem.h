@@ -20,7 +20,7 @@ class Particle {
     Eigen::Vector3d a;  // Acceleration
 
     // Needed for tsRK4 methodFunction:
-    Eigen::Vector3d r0; // Radius vector at previous time step
+    Eigen::Vector3d r0; // Radius vector at previous time step. Also used at boundaries check.
     std::vector<Eigen::Vector3d> A = std::vector<Eigen::Vector3d>(2); //Acceleration at intermediate time steps
 
     static int pCount;
@@ -37,22 +37,20 @@ class Particle {
     std::string state(int); // Particle's state string with specified precision
     std::string state(); // Particle's state string, max precision
     void info(); // Full state to std::cout
-
-
 };
 
 class PSystem {
  public:
     Eigen::Vector3d dimXYZ; // PSystem dimensions
     std::vector<Particle> particles;
-	std::vector<Eigen::Vector3d> vertices;
+    //std::vector<Eigen::Vector3d> vertices;
     //std::vector<std::vector<int> > boundaries(10, std::vector<int>(10,1));
-    std::vector<LineSegment> boundaries;
+    std::vector<Convex> boundaries;
 
     double EtotInit; //Initial total energy
 
-    double attK = 1; //attraction force koef
-    double repK = 1; //repulsive force koef
+    double attK = 1; //attraction force coefficient
+    double repK = 1; //repulsive force coefficient
 
     //double G = 6.6740831E-20; // (kg*km/s)*(km/kg)^2 , Gravitational constant
     double G;
@@ -78,9 +76,11 @@ class PSystem {
     // Estimate deltaT
     double estimateDeltaT();
 
-    // Returns particles to system boundaries check.
-    void checkBoundsCyclic();
-    void checkBoundsHard();
+    // Return particles to system boundaries
+    void checkBoundsCyclic(); // Deprecated
+    void checkBoundsHard(); // Deprecated
+    void checkBoundaries();
+    
     // Function takes integration methodFunction name and returns pointer to function
     void (PSystem::*methodNameToMethodPtr(std::string))(double);
     
@@ -132,7 +132,7 @@ class PSystem {
 
 
     PSystem();
-    PSystem(const PSystem &); //  Assigment copy
+    PSystem(const PSystem &); //  Assignment copy
     PSystem(PSystem &&); // Move constructor
     PSystem & operator=(const PSystem &); // Assignment copy
     PSystem & operator=(PSystem &&); // Assignment move
