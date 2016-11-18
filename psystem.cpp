@@ -527,7 +527,7 @@ void PSystem::evolve()
     stateToFile(writePr, outFile);
     info(precision);
     while ((time + dt) <= endTime) {
-        (this->*methodFunction)(dt);
+        (this->*methodFunction)(dt);        
         checkBoundaries();
         time += dt;
         writeTime += dt;
@@ -702,10 +702,10 @@ void PSystem::readParticlesData(std::string fileName)
         }
 
         isFile.clear();
-        isFile.seekg(blockPos); // Setting position to the beggining of last time block
+        isFile.seekg(blockPos); // Setting position to the beginning of last time block
         std::getline(isFile, line); // Skipping lines with system's energy data
 
-        // Reading particles positions untill the end of file
+        // Reading particles positions until the end of file
         while (std::getline(isFile, line)) {
             if (line == "") {break;}
             sLine = std::stringstream(line);
@@ -730,6 +730,54 @@ void PSystem::readParticlesData(std::string fileName)
 
     } else {
         std::cout << "Particles data file " << fileName << " is not found." << std::endl;
+    }
+}
+
+void PSystem::readBoundariesData(std::string fileName)
+{
+    std::ifstream isFile;
+    std::stringstream sLine;
+    std::string line;
+    std::string word;
+    std::string blockMark = "#Boundary"; // This string should preceed the sequence of boundary points
+    std::istream::pos_type blockPos; // Position of boundary block
+    
+    
+    // Boundary parameters to read
+    Eigen::Vector3d vertex;
+
+    isFile.open(fileName);
+
+    if (isFile.is_open()){
+        // Search the beginning of the first boundary data block
+        while (std::getline(isFile, line)) {
+            sLine = std::stringstream(line);
+            sLine >> word;
+            if (word == blockMark) {
+                blockPos = isFile.tellg();
+                (*this).boundaries.emplace_back();
+                break;
+            }
+        }
+       
+        // Reading boundaries vertices until the end of file
+        while (std::getline(isFile, line)) {
+            if (line != "") {
+                sLine = std::stringstream(line);
+                sLine >> word;
+                if (word == blockMark) {
+                    (*this).boundaries.emplace_back();
+                } else {
+                    vertex(0) = std::stod(word);
+                    sLine >> word; vertex(1) = std::stod(word);
+                    sLine >> word; vertex(2) = std::stod(word);
+                    // Adds vertex to the last element (convex) of boundaries vector.
+                    (*this).boundaries.back().vertices.emplace_back(vertex);
+                }
+            }
+        }
+    } else {
+        std::cout << "Boundaries data file " << fileName << " is not found." << std::endl;
     }
 }
 
@@ -792,6 +840,9 @@ void PSystem::readParams(std::string fileName)
             if (parameters.at(0) == "write_interval") {
                 writeInterval = std::stod(parameters.at(1));
             }
+            if (parameters.at(0) == "boundaries_input_file") {
+                readBoundariesData(parameters.at(1));
+            }
             parameters.erase(parameters.begin(), parameters.end());
         }
     } else {
@@ -812,20 +863,29 @@ void PSystem::checkBoundaries()
     LineSegment path;
     Eigen::Vector3d dr; //Out of boundary displacement of particle
     
+    /*std::ofstream osFile;
+    osFile.open("collisions.dat", std::ofstream::out | std::ofstream::app); // Output, append
+    */
     do {
         xFlag = false;
         for (auto& particle : particles) {
-        path = LineSegment(particle.r0, particle.r);
-        for (auto& boundary : boundaries) {
-            xPointN = intersectionPointN(path, boundary);
-            xPoint = xPointN.at(0);
-            n0 = xPointN.at(1);
-            if (!std::isnan(xPoint(0))) {
-                particle.v = particle.v - 2 * particle.v.dot(n0) * n0;
-                dr = particle.r - xPoint;
-                dr = dr - 2 * dr.dot(n0) * n0;
-                particle.r = xPoint + dr;
-                xFlag = true;
+            path = LineSegment(particle.r0, particle.r);
+            for (auto& boundary : boundaries) {
+                xPointN = intersectionPointN(path, boundary);
+                xPoint = xPointN.at(0);
+                n0 = xPointN.at(1);
+                if (!std::isnan(xPoint(0))) {
+                    /*
+                    osFile << "NEW COLLISION!" << " " << time << " " << particle.id << std::endl;
+                    osFile << boundary.vertices.at(0) << "\n "<< std::endl;
+                    osFile << xPoint << "\n n0 \n " << n0 << "\n r \n " << particle.r << "\n r0 \n " << particle.r0 << "\n v\n " << particle.v << std::endl;
+                    */
+                    particle.v = particle.v - 2 * particle.v.dot(n0) * n0;
+                    dr = particle.r - xPoint;
+                    dr = dr - 2 * dr.dot(n0) * n0;
+                    particle.r = xPoint + dr;
+                    //osFile << xPoint << "\n n0" << n0 << "\n r\n " << particle.r <<"\n r0\n " << particle.r0 << "\n v\n " << particle.v << std::endl;
+                    xFlag = true;
                 }
             }      
         }

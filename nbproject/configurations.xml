@@ -31,6 +31,7 @@
       </toolsSet>
       <flagsDictionary>
         <element flagsID="0" commonFlags="-O3 -std=c++11"/>
+        <element flagsID="1" commonFlags="-mtune=generic -march=x86-64 -O2 -std=c++11"/>
       </flagsDictionary>
       <codeAssistance>
       </codeAssistance>
@@ -39,7 +40,10 @@
           <buildCommandWorkingDir>.</buildCommandWorkingDir>
           <buildCommand>${MAKE} -f Makefile</buildCommand>
           <cleanCommand>${MAKE} -f Makefile clean</cleanCommand>
-          <executablePath></executablePath>
+          <executablePath>particles</executablePath>
+          <ccTool>
+            <standard>8</standard>
+          </ccTool>
         </makeTool>
         <preBuild>
           <preBuildCommandWorkingDir>.</preBuildCommandWorkingDir>
@@ -58,15 +62,63 @@
         </ccTool>
       </item>
       <item path="main.cpp" ex="false" tool="1" flavor2="8">
-        <ccTool flags="0">
+        <ccTool flags="1">
+          <incDir>
+            <pElem>/usr/include/eigen3/Eigen</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core/util</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core/arch/SSE</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Geometry</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/plugins</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/LU</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Cholesky</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/QR</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Eigenvalues</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/SVD</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Householder</pElem>
+            <pElem>intersections</pElem>
+            <pElem>.</pElem>
+          </incDir>
         </ccTool>
       </item>
       <item path="psdistance.cpp" ex="false" tool="1" flavor2="8">
-        <ccTool flags="0">
+        <ccTool flags="1">
+          <incDir>
+            <pElem>/usr/include/eigen3/Eigen</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core/util</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core/arch/SSE</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Geometry</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/plugins</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/LU</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Cholesky</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/QR</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Eigenvalues</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/SVD</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Householder</pElem>
+            <pElem>intersections</pElem>
+            <pElem>.</pElem>
+          </incDir>
         </ccTool>
       </item>
       <item path="psystem.cpp" ex="false" tool="1" flavor2="8">
-        <ccTool flags="0">
+        <ccTool flags="1">
+          <incDir>
+            <pElem>/usr/include/eigen3/Eigen/src/Core</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core/util</pElem>
+            <pElem>/usr/include/eigen3/Eigen</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Core/arch/SSE</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Geometry</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/plugins</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/LU</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Cholesky</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/QR</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Eigenvalues</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/SVD</pElem>
+            <pElem>/usr/include/eigen3/Eigen/src/Householder</pElem>
+            <pElem>intersections</pElem>
+            <pElem>.</pElem>
+          </incDir>
         </ccTool>
       </item>
     </conf>

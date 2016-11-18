@@ -1,9 +1,10 @@
 CC = g++
-CFLAGS = -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c
+#CFLAGS = -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c
+CFLAGS = -O3 -std=c++11 -Wall -fexceptions -c -g
 
 all: particles psdistance
 
-particles: main.o psystem.o 
+particles: main.o psystem.o intersections/intersections.o
 	$(CC) main.o psystem.o intersections/intersections.o -o particles
 
 main.o: main.cpp psystem.h
@@ -22,4 +23,4 @@ psdistance: psdistance.o psystem.o intersections/intersections.o
 	$(CC) psdistance.o psystem.o intersections/intersections.o -o psdistance
 
 clean:
-	rm -rf *.o particles psdistance
+	rm -rf *.o particles psdistance intersections/intersections.o

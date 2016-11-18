@@ -12,6 +12,10 @@
         </df>
         <df name="collision2-1">
         </df>
+        <df name="collision2-2">
+        </df>
+        <df name="collision2-3">
+        </df>
         <df name="random">
         </df>
       </df>
@@ -46,6 +50,8 @@
         <gdb_interceptlist>
           <gdbinterceptoptions gdb_all="false" gdb_unhandled="true" gdb_unexpected="true"/>
         </gdb_interceptlist>
+        <gdb_signals>
+        </gdb_signals>
         <gdb_options>
           <DebugOptions>
           </DebugOptions>
@@ -58,9 +64,11 @@
       <runprofile version="9">
         <runcommandpicklist>
           <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" collisions2.in</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" collision2.in</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}"</runcommand>
-        <rundir>.</rundir>
+        <runcommand>"${OUTPUT_PATH}" collision2.in</runcommand>
+        <rundir>/home/maxim/projects/psystem/./test/collision2-3</rundir>
         <buildfirst>false</buildfirst>
         <terminal-type>0</terminal-type>
         <remove-instrumentation>0</remove-instrumentation>

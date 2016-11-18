@@ -60,4 +60,23 @@ int main(int argc, char **argv)
     std::cout << "g belongs to lineSegm1: " << ifBelongsToLineSegment(g, lineSegm1) << std::endl;
     std::cout << "line1 & line2 intersection point is: " << intersectionPoint(line1, line2).transpose() << std::endl;
     std::cout << "lineSegm1 & lineSegm2 intersection point is: " << intersectionPoint(lineSegm1, lineSegm2).transpose() << std::endl;
+    
+    
+    std::vector<Eigen::Vector3d> convexPoints2;
+    a << 0, -7, -1;
+    b << 0, -7,  1;
+    c << 0,  7,  1;
+    d << 0,  7, -1;
+    convexPoints2.emplace_back(a);
+    convexPoints2.emplace_back(b);
+    convexPoints2.emplace_back(c);
+    convexPoints2.emplace_back(d);
+    Convex convex2(convexPoints2);
+    
+    e << 0.000633834, -2.22676, 0;
+    f << 0.000432003, -2.22444, 0;
+    LineSegment lseg2(e,f);
+    std::cout << "Convex2 - LineSegment2 intersection point: "
+              << intersectionPoint(lSeg2, convex2).transpose() << std::endl;
+    
 }

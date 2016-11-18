@@ -87,6 +87,7 @@ class PSystem {
     // Parameters reading from files
     void readParams(std::string fileName);
     void readParticlesData(std::string fileName);
+    void readBoundariesData(std::string fileName);
 
     //add particle
     void addParticle(double, Eigen::Vector3d, Eigen::Vector3d);
