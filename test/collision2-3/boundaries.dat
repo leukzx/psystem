@@ -1,33 +1,29 @@
-#Boundary 1
-0 -7 -1
-0 -7  1
-0  7  1
-0  7 -1
+#Boundary Left
+-5 -5 -5
+-5 -5  5
+-5  5  5
+-5  5 -5
 
+#Boundary Right
+5 -5 -5
+5 -5  5
+5  5  5
+5  5 -5
 
-#Boundary 2
-10 -7 -1
-10 -7  1
-10  7  1
-10  7 -1
+#Boundary Top
+-5 5  5
+ 5 5  5
+ 5 5 -5
+-5 5 -5
 
+#Boundary Bottom left
+-5 -5  5
+-5 -5 -5
+-1 -5 -5
+-1 -5  5
 
-#Boundary 3
-0  7  1
-10 7  1
-10 7 -1
-0  7 -1
-
-
-#Boundary 4
-0  -7  1
-10 -7  1
-10 -7 -1
-0  -7 -1
-
-
-#Boundary center
-7 -1  1
-7 -1 -1
-5  1 -1
-5  1  1
+#Boundary Bottom right
+ 1 -5  5
+ 1 -5 -5
+ 5 -5 -5
+ 5 -5  5

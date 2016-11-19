@@ -63,20 +63,22 @@ int main(int argc, char **argv)
     
     
     std::vector<Eigen::Vector3d> convexPoints2;
-    a << 0, -7, -1;
-    b << 0, -7,  1;
-    c << 0,  7,  1;
-    d << 0,  7, -1;
+    a << -5, -5,  5;
+    b << -5, -5, -5;
+    c << -1, -5, -5;
+    d << -1, -5,  5;
     convexPoints2.emplace_back(a);
     convexPoints2.emplace_back(b);
     convexPoints2.emplace_back(c);
     convexPoints2.emplace_back(d);
     Convex convex2(convexPoints2);
     
-    e << 0.000633834, -2.22676, 0;
-    f << 0.000432003, -2.22444, 0;
-    LineSegment lseg2(e,f);
+    e << -0.543910147623898, -4.9979429211587529, 0;
+    f << -0.54729220174636739, -5.0016627305021135, 0;
+    //e << -2, 0, 0;
+    //f << -2, -10, 0;
+    LineSegment lSeg3(e,f);
     std::cout << "Convex2 - LineSegment2 intersection point: "
-              << intersectionPoint(lSeg2, convex2).transpose() << std::endl;
+              << intersectionPointN(lSeg3, convex2).at(0).transpose() << std::endl;
     
 }

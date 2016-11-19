@@ -869,15 +869,15 @@ void PSystem::checkBoundaries()
     do {
         xFlag = false;
         for (auto& particle : particles) {
-            path = LineSegment(particle.r0, particle.r);
             for (auto& boundary : boundaries) {
+                path = LineSegment(particle.r0, particle.r);
                 xPointN = intersectionPointN(path, boundary);
                 xPoint = xPointN.at(0);
                 n0 = xPointN.at(1);
                 if (!std::isnan(xPoint(0))) {
                     /*
                     osFile << "NEW COLLISION!" << " " << time << " " << particle.id << std::endl;
-                    osFile << boundary.vertices.at(0) << "\n "<< std::endl;
+                    osFile << boundary.vertices.at(0) <<  "\n "<< std::endl;
                     osFile << xPoint << "\n n0 \n " << n0 << "\n r \n " << particle.r << "\n r0 \n " << particle.r0 << "\n v\n " << particle.v << std::endl;
                     */
                     particle.v = particle.v - 2 * particle.v.dot(n0) * n0;
