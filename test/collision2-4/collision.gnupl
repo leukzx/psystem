@@ -1,0 +1,17 @@
+set key off
+set grid 
+set xrange [-10:10]
+set yrange [-10:10]
+#set terminal pngcairo size 640,480 #enhanced font 'Verdana,10'
+
+#datFile(n) = sprintf("%d.dat",n)
+datFile = "output.dat"
+outFile(n) = sprintf("%06d.png",n)
+do for [j=1:1000:1] {
+	#set output outFile(j)
+	#plot for [i=0:1:1] datFile(i)  using 2:3 every :::j::j
+	#plot "output.dat" index j using 2:3 
+        plot for [i=0:100:1] datFile index j using 2:3 every 1:1:i:0:i:0
+	#replot for [i=0:99:1] datFile(i)  using 2:3:6:7 every ::j::j with vectors
+	pause 0.02
+}

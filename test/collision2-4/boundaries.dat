@@ -1,0 +1,29 @@
+#Boundary Left
+-5 -5 -5
+-5 -5  5
+-5  5  5
+-5  5 -5
+
+#Boundary Right
+5 -5 -5
+5 -5  5
+5  5  5
+5  5 -5
+
+#Boundary Top
+-5 5  5
+ 5 5  5
+ 5 5 -5
+-5 5 -5
+
+#Boundary Bottom left
+-5 -5  5
+-5 -5 -5
+-0.5 -5 -5
+-0.5 -5  5
+
+#Boundary Bottom right
+0.5 -5  5
+0.5 -5 -5
+ 5 -5 -5
+ 5 -5  5
