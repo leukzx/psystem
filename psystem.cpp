@@ -270,7 +270,7 @@ void PSystem::setRandom(Particle& particle)
     //set random coordinates
     particle.r.setRandom();
     particle.r = particle.r.array().abs();
-    particle.r = particle.r.cwiseProduct(dimXYZ/3);
+    particle.r = particle.r.cwiseProduct(dimXYZ);
 
     //set random speed
     double lengthpct = 0.1; // max percent of psystem size per second to move
@@ -316,7 +316,7 @@ Eigen::Vector3d PSystem::ljForce(const Particle& p1, const Particle& p2)
 {
     Eigen::Vector3d force;
     Eigen::Vector3d r; // Radius-vector of p2 relative to p1
-    double rm = 1; // The distance at which the potential reaches its minimum (F=0))
+    double rm = 1; // Distance at which the potential reaches its minimum (F=0)
     double epsilon = 1;
 
     r = p2.r - p1.r;
@@ -327,7 +327,7 @@ Eigen::Vector3d PSystem::ljForce(const Particle& p1, const Particle& p2)
 
 void PSystem::calcAccel()
 {
-    int pNum; //number of particles
+    int pNum; // Number of particles
     Eigen::Matrix<Eigen::Vector3d, Eigen::Dynamic, Eigen::Dynamic> forcesM;
     Eigen::Vector3d netForce;
 
@@ -522,7 +522,7 @@ void PSystem::evolve()
     EtotInitSet();
     calcAccel();
     
-    dt = std::min(timeStepInit, 0.01 * estimateDeltaT());
+    dt = std::min(timeStepInit, 0.1 * estimateDeltaT());
     timeStep = dt;
     stateToFile(writePr, outFile);
     info(precision);
@@ -536,7 +536,7 @@ void PSystem::evolve()
             stateToFile(writePr, outFile);
             writeTime = 0;
         }
-        dt = std::min(timeStepInit, 0.001 * estimateDeltaT());
+        dt = std::min(timeStepInit, 0.1 * estimateDeltaT());
         if ((writeTime + dt) > writeInterval) // Check dt for not to overshoot write time
             dt = writeInterval - writeTime;
         timeStep = dt;

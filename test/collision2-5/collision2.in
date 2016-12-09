@@ -1,7 +1,7 @@
 time_step 1
 end_time 80
 system_dimensions 50 50 0
-random_particles 10
+random_particles 100
 eps 0
 G 1
 integration_method RK4
