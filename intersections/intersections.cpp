@@ -144,7 +144,7 @@ Eigen::Vector3d intersectionPoint(LineSegment& lSeg, Convex& cnvx)
     Triangle triangle;
     Eigen::Vector3d point;
 
-    for (uint i = 1 ; i < cnvx.vertices.size() - 1; i++) {
+    for (unsigned int i = 1 ; i < cnvx.vertices.size() - 1; i++) {
         triangle = Triangle(cnvx.vertices.at(0), cnvx.vertices.at(i),
                 cnvx.vertices.at(i+1));
         point = intersectionPoint(lSeg, triangle);
@@ -161,7 +161,7 @@ std::vector<Eigen::Vector3d> intersectionPointN(LineSegment& lSeg, Convex& cnvx)
     Eigen::Vector3d point;
     std::vector<Eigen::Vector3d> rn;
 
-    for (uint i = 1 ; i < cnvx.vertices.size() - 1; i++) {
+    for (unsigned int i = 1 ; i < cnvx.vertices.size() - 1; i++) {
         triangle = Triangle(cnvx.vertices.at(0), cnvx.vertices.at(i),
                 cnvx.vertices.at(i+1));
         point = intersectionPoint(lSeg, triangle);

@@ -1,15 +1,15 @@
-CC = i686-w64-mingw32-gcc
-CFLAGS = -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c
+CC = i686-w64-mingw32-g++
+CFLAGS = -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c -static-libgcc -static-libstdc++
 BUILDDIR = win32
 #CFLAGS = -O0 -std=c++11 -Wall -fexceptions -c -g
 
 all: particles psdistance
 
 particles: main.o psystem.o intersections.o
-	$(CC) $(BUILDDIR)/main.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -o $(BUILDDIR)/particles
+	$(CC) $(BUILDDIR)/main.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -o $(BUILDDIR)/particles.exe
 
 psdistance: psdistance.o psystem.o intersections.o
-	$(CC) $(BUILDDIR)/psdistance.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -o $(BUILDDIR)/psdistance
+	$(CC) $(BUILDDIR)/psdistance.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -o $(BUILDDIR)/psdistance.exe
 
 main.o: main.cpp psystem.h
 	$(CC) $(CFLAGS) main.cpp -o $(BUILDDIR)/main.o

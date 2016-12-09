@@ -131,7 +131,7 @@ PSystem PSystem::operator-(const PSystem &rhs)
     PSystem psystem;
     if ((*this).particles.size() == rhs.particles.size()) {
         
-        for (uint i = 0; i < (*this).particles.size(); i++) {
+        for (unsigned int i = 0; i < (*this).particles.size(); i++) {
             psystem.particles.emplace_back((*this).particles.at(i) - rhs.particles.at(i));
         }
         
@@ -906,7 +906,7 @@ void PSystem::setBoundingBox()
 
     for (auto& boundary : boundaries) {
         for (auto& vertex : boundary.vertices) {
-            for (uint i = 0; i < 3; ++i) {
+            for (int i = 0; i < 3; ++i) {
                 if (minVertex(i) > vertex(i)) minVertex(i) = vertex(i);
                 if (maxVertex(i) < vertex(i)) maxVertex(i) = vertex(i);
             }

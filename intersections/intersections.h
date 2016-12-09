@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cmath>
-#include <eigen3/Eigen/Dense>
-//#include "/usr/include/eigen3/Eigen/Dense"
+//#include <eigen3/Eigen/Dense>
+#include "/usr/include/eigen3/Eigen/Dense"
 #include <fstream>      // Stream class to both read and write from/to files.
 #include <string>       // std::string, std::to_string
 #include <iomanip>      // std::setprecision
