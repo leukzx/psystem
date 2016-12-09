@@ -43,9 +43,9 @@ class PSystem {
  public:
     Eigen::Vector3d dimXYZ; // PSystem dimensions
     std::vector<Particle> particles;
-    //std::vector<Eigen::Vector3d> vertices;
-    //std::vector<std::vector<int> > boundaries(10, std::vector<int>(10,1));
+
     std::vector<Convex> boundaries;
+    std::vector<Eigen::Vector3d> boundingBox; //Axis-aligned minimum bounding box
 
     double EtotInit; //Initial total energy
 
@@ -76,10 +76,15 @@ class PSystem {
     // Estimate deltaT
     double estimateDeltaT();
 
+    // Set bounding box
+    void setBoundingBox();
+    void setBoundingBox(Eigen::Vector3d, Eigen::Vector3d);
+
     // Return particles to system boundaries
     void checkBoundsCyclic(); // Deprecated
     void checkBoundsHard(); // Deprecated
     void checkBoundaries();
+    void checkBoundingBox();
     
     // Function takes integration methodFunction name and returns pointer to function
     void (PSystem::*methodNameToMethodPtr(std::string))(double);

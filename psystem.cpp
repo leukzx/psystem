@@ -892,3 +892,41 @@ void PSystem::checkBoundaries()
     } while (xFlag);
     
 }
+
+void PSystem::setBoundingBox(Eigen::Vector3d minVertex, Eigen::Vector3d maxVertex)
+{
+    (*this).boundingBox.emplace_back(minVertex);
+    (*this).boundingBox.emplace_back(maxVertex);
+}
+
+void PSystem::setBoundingBox()
+{
+    Eigen::Vector3d minVertex(0, 0, 0);
+    Eigen::Vector3d maxVertex(0, 0, 0);
+
+    for (auto& boundary : boundaries) {
+        for (auto& vertex : boundary.vertices) {
+            for (uint i = 0; i < 3; ++i) {
+                if (minVertex(i) > vertex(i)) minVertex(i) = vertex(i);
+                if (maxVertex(i) < vertex(i)) maxVertex(i) = vertex(i);
+            }
+        }
+    }
+
+    setBoundingBox(minVertex, maxVertex);
+}
+
+void PSystem::checkBoundingBox() {
+    for (auto& particle : particles) {
+        for (int i = 0; i < 3; ++i ){
+            if (particle.r(i) > (*this).boundingBox.at(1)(i)) {
+                particle.r(i) += 2*((*this).boundingBox.at(1)(i) - particle.r(i));
+                particle.v(i) = -particle.v(i);
+            }
+            if (particle.r(i) < (*this).boundingBox.at(0)(i)) {
+                particle.r(i) = -particle.r(i);
+                particle.v(i) = -particle.v(i);
+            }
+        }
+    }
+}
