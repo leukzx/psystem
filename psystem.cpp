@@ -1,4 +1,4 @@
-#include "psystem.h"
+ #include "psystem.h"
 
 
 Particle::Particle()
@@ -74,6 +74,7 @@ PSystem::PSystem() // Default constructor
     writePr = DBL_DIG; 
     writeInterval = 0;
     EtotInit = 0;
+
 }
 
 PSystem::PSystem(PSystem &&rhs) // Move constructor
@@ -306,8 +307,6 @@ Eigen::Vector3d PSystem::gravityForce(const Particle& p1, const Particle& p2)
     ptpRv = p2.r - p1.r;
     ptpR = ptpRv.squaredNorm() + pow(eps, 2);
     ptpR = pow(ptpR, 1.5);
-    //force = attK * ptpRv / pow(ptpRv.norm(), 8); // Attraction force
-    //force -= repK * ptpRv / pow(ptpRv.norm(), 14); // Repulsive force
     force = G * p1.m * p2.m * ptpRv / ptpR; // Gravity force
     return force;
 }
@@ -320,7 +319,10 @@ Eigen::Vector3d PSystem::ljForce(const Particle& p1, const Particle& p2)
     double epsilon = 1;
 
     r = p2.r - p1.r;
-    force = 12 * epsilon *  (pow(rm, 6)/pow(r.norm(),7) - pow(rm, 12)/pow(r.norm(), 13)) * r/r.norm();
+    force = 12
+            * epsilon
+            * (pow(rm, 6)/pow(r.norm(),7) - pow(rm, 12)/pow(r.norm(), 13))
+            * r/r.norm();
 
     return force;
 }
@@ -348,7 +350,9 @@ void PSystem::calcAccel()
         for (int j = 0; j < pNum; ++j){
             netForce += forcesM(i, j);
         }
-        particles[i].a = netForce / particles[i].m;
+        particles[i].a = netForce / particles[i].m
+                + g
+                + centralForceCoef / (particles[i].r - centralForceCenter).squaredNorm();
     }
 }
 
@@ -360,7 +364,7 @@ double PSystem::estimateDeltaT()
     pNum = particles.size();
     collisionTimeM.resize(pNum, pNum);
     collisionTimeM.fill(DBL_MAX);
-
+    #pragma omp parallel for
     for (int i = 0; i < pNum; i++) {
         for (int j = i + 1 ; j < pNum; j++) {
             relr = (particles[i].r - particles[j].r).norm();
@@ -893,13 +897,19 @@ void PSystem::checkBoundaries()
     
 }
 
-void PSystem::setBoundingBox(Eigen::Vector3d minVertex, Eigen::Vector3d maxVertex)
+boundingBox::boundingBox()
 {
-    (*this).boundingBox.emplace_back(minVertex);
-    (*this).boundingBox.emplace_back(maxVertex);
+    minVertex << -DBL_MAX, - DBL_MAX, - DBL_MAX;
+    maxVertex << DBL_MAX, DBL_MAX, DBL_MAX;
 }
 
-void PSystem::setBoundingBox()
+void boundingBox::setBoundingBox(Eigen::Vector3d min, Eigen::Vector3d max)
+{
+    (*this).minVertex = min;
+    (*this).maxVertex = max;
+}
+
+void boundingBox::setBoundingBox(std::vector<Convex> boundaries)
 {
     Eigen::Vector3d minVertex(0, 0, 0);
     Eigen::Vector3d maxVertex(0, 0, 0);
@@ -919,14 +929,21 @@ void PSystem::setBoundingBox()
 void PSystem::checkBoundingBox() {
     for (auto& particle : particles) {
         for (int i = 0; i < 3; ++i ){
-            if (particle.r(i) > (*this).boundingBox.at(1)(i)) {
-                particle.r(i) += 2*((*this).boundingBox.at(1)(i) - particle.r(i));
+            if (particle.r(i) > (*this).bBox.maxVertex(i)) {
+                particle.r(i) += 2*((*this).bBox.maxVertex(i) - particle.r(i));
                 particle.v(i) = -particle.v(i);
             }
-            if (particle.r(i) < (*this).boundingBox.at(0)(i)) {
-                particle.r(i) = -particle.r(i);
+            if (particle.r(i) < (*this).bBox.minVertex(i)) {
+                particle.r(i) += 2*((*this).bBox.minVertex(i) - particle.r(i));
                 particle.v(i) = -particle.v(i);
             }
         }
     }
+}
+
+Eigen::Vector3d PSystem::extFieldUniform(Particle& prtcl)
+{
+    Eigen::Vector3d F;
+    F = prtcl.m * g;
+    return F;
 }

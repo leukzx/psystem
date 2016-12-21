@@ -9,6 +9,18 @@
 #include <vector>
 #include "intersections/intersections.h"
 
+class boundingBox { //Axis-aligned bounding box
+ public:
+    Eigen::Vector3d minVertex;
+    Eigen::Vector3d maxVertex;
+
+
+    void setBoundingBox(std::vector<Convex>); //Set minimum bounding box
+    void setBoundingBox(Eigen::Vector3d, Eigen::Vector3d); //Set bounding box
+
+    boundingBox();
+};
+
 class Particle {
  public:
     int id;
@@ -46,12 +58,10 @@ class PSystem {
     std::vector<Particle> particles;
 
     std::vector<Convex> boundaries;
-    std::vector<Eigen::Vector3d> boundingBox; //Axis-aligned minimum bounding box
+
+    boundingBox bBox; //Axis-aligned bounding box
 
     double EtotInit; //Initial total energy
-
-    double attK = 1; //attraction force coefficient
-    double repK = 1; //repulsive force coefficient
 
     //double G = 6.6740831E-20; // (kg*km/s)*(km/kg)^2 , Gravitational constant
     double G;
@@ -59,7 +69,12 @@ class PSystem {
     double timeStep;
     double time;
     double endTime;
-    
+
+    //External force fields
+    Eigen::Vector3d g; //Uniform field coeff F= mg
+    Eigen::Vector3d centralForceCoef; // Central force coeff F = m * centralForceCoef/r^2
+    Eigen::Vector3d centralForceCenter;
+
     typedef  void (PSystem::*methodFunctionPTR)(double);
     typedef  Eigen::Vector3d (PSystem::*forceFunctionPTR)(const Particle& , const Particle&);
     typedef  double (PSystem::*energyFunctionPTR)(const Particle& , const Particle&);
@@ -77,20 +92,16 @@ class PSystem {
     // Estimate deltaT
     double estimateDeltaT();
 
-    // Set bounding box
-    void setBoundingBox();
-    void setBoundingBox(Eigen::Vector3d, Eigen::Vector3d);
-
-    // Return particles to system boundaries
+    //Return particles to system boundaries
     void checkBoundsCyclic(); // Deprecated
     void checkBoundsHard(); // Deprecated
     void checkBoundaries();
     void checkBoundingBox();
     
-    // Function takes integration methodFunction name and returns pointer to function
+    //Function takes integration methodFunction name and returns pointer to function
     void (PSystem::*methodNameToMethodPtr(std::string))(double);
     
-    // Parameters reading from files
+    //Parameters reading from files
     void readParams(std::string fileName);
     void readParticlesData(std::string fileName);
     void readBoundariesData(std::string fileName);
@@ -109,6 +120,10 @@ class PSystem {
     Eigen::Vector3d ptpForce(const Particle& , const Particle&);
     Eigen::Vector3d gravityForce(const Particle& , const Particle&);
     Eigen::Vector3d ljForce(const Particle& , const Particle&);
+
+    //External field forces
+    Eigen::Vector3d extFieldUniform(Particle&);
+    Eigen::Vector3d extFieldCentral(Particle&);
 
     // Calculates accelerations of all particles
     void calcAccel();
