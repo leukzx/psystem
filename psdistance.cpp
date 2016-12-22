@@ -17,8 +17,8 @@ int main(int argc, char **argv)
         
         if (psystem.norm() != std::numeric_limits<double>::quiet_NaN()) {
             int psdimension;
-            psdimension = 2 * psystem.dimXYZ.size() * psystem.particles.size();
-        
+            //psdimension = 2 * psystem.dimXYZ.size() * psystem.particles.size();
+            psdimension = 2 * psystem.bBox.minVertex.size() * psystem.particles.size();
             std::cout << "Phase space dimensions number = "; 
             std::cout << psdimension << std::endl;
         
@@ -27,9 +27,9 @@ int main(int argc, char **argv)
         } else {
             std::cout << "Can't compute distance between systems.\n";
             std::cout << "First system's dimensions number= ";
-            std::cout << 2 * psystem1.dimXYZ.size() * psystem1.particles.size() << std::endl;
+            std::cout << 2 * psystem1.bBox.minVertex.size() * psystem1.particles.size() << std::endl;
             std::cout << "Second system's dimensions number = ";
-            std::cout << 2 * psystem2.dimXYZ.size() * psystem2.particles.size() << std::endl;
+            std::cout << 2 * psystem2.bBox.minVertex.size() * psystem2.particles.size() << std::endl;
         }
     } else {
         std::cout << "Usage: " << argv[0] << " <filename1> <filename2>\n";

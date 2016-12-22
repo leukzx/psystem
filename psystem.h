@@ -54,7 +54,7 @@ class Particle {
 
 class PSystem {
  public:
-    Eigen::Vector3d dimXYZ; // PSystem dimensions
+    //Eigen::Vector3d dimXYZ; // PSystem dimensions
     std::vector<Particle> particles;
 
     std::vector<Convex> boundaries;

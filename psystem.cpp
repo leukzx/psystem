@@ -68,13 +68,15 @@ PSystem::PSystem() // Default constructor
     timeStep = 0;
     time = 0;
     endTime = 0;
-    potentialName = "Gravitational";
+    potentialName = "LJpotential";
     methodName = "RK4";
     outFile = "";
     writePr = DBL_DIG; 
     writeInterval = 0;
     EtotInit = 0;
-
+    g << 0, 0, 0;
+    centralForceCoef << 0, 0, 0;
+    centralForceCenter << 0, 0, 0;
 }
 
 PSystem::PSystem(PSystem &&rhs) // Move constructor
@@ -271,12 +273,14 @@ void PSystem::setRandom(Particle& particle)
     //set random coordinates
     particle.r.setRandom();
     particle.r = particle.r.array().abs();
-    particle.r = particle.r.cwiseProduct(dimXYZ);
+    particle.r = bBox.minVertex
+                 + particle.r.cwiseProduct(bBox.maxVertex - bBox.minVertex);
 
     //set random speed
     double lengthpct = 0.1; // max percent of psystem size per second to move
     particle.v.setRandom();
-    particle.v = particle.v.cwiseProduct(dimXYZ * lengthpct);
+    particle.v = particle.v.cwiseProduct((bBox.maxVertex - bBox.minVertex)
+                                         * lengthpct);
 }
 
 void PSystem::setRandomAll()
@@ -335,7 +339,7 @@ void PSystem::calcAccel()
 
     pNum = particles.size();
     forcesM.resize(pNum, pNum);
-
+    #pragma omp parallel for
     for (int i = 0; i < pNum; ++i) {
         forcesM(i, i) << 0, 0, 0;
         for (int j = i + 1; j < pNum; ++j) {
@@ -344,15 +348,16 @@ void PSystem::calcAccel()
         }
     }
 
-
+    #pragma omp parallel for
     for (int i = 0; i < pNum; ++i) {
         netForce << 0, 0, 0;
         for (int j = 0; j < pNum; ++j){
             netForce += forcesM(i, j);
         }
-        particles[i].a = netForce / particles[i].m
-                + g
-                + centralForceCoef / (particles[i].r - centralForceCenter).squaredNorm();
+        particles[i].a = netForce / particles[i].m;
+               // + g
+               // + centralForceCoef / ((particles[i].r - centralForceCenter).squaredNorm() + DBL_MIN);
+
     }
 }
 
@@ -431,7 +436,7 @@ double PSystem::Epot()
     double Ep = 0;
     int pNum; //number of particles
     pNum = particles.size();
-
+    #pragma omp parallel for
     for (int i = 0; i < pNum; ++i) {
         for (int j = i + 1; j < pNum; ++j) {
             Ep += EpotPtp(particles[i], particles[j]);
@@ -540,7 +545,7 @@ void PSystem::evolve()
             stateToFile(writePr, outFile);
             writeTime = 0;
         }
-        dt = std::min(timeStepInit, 0.1 * estimateDeltaT());
+        dt = std::min(timeStepInit, 0.01 * estimateDeltaT());
         if ((writeTime + dt) > writeInterval) // Check dt for not to overshoot write time
             dt = writeInterval - writeTime;
         timeStep = dt;
@@ -561,7 +566,7 @@ void PSystem::evolve()
     std::cout << "Number of time steps: " << nt << std::endl;
 }
 
-void PSystem::checkBoundsCyclic()
+/*void PSystem::checkBoundsCyclic()
 {
     for (auto& particle : particles) {
         for (int i = 0; i < 3; ++i) {
@@ -585,7 +590,7 @@ void PSystem::checkBoundsHard() {
         }
     }
 }
-
+*/
 
 
 std::string PSystem::parameters()
@@ -602,9 +607,19 @@ std::string PSystem::parameters()
     out << "potentialName = " << potentialName << std::endl;
     out << "outFile = " << outFile << std::endl;
     out << "writePr = " << writePr << std::endl;
-    out << "dimXYZ = " << dimXYZ(0) <<" "<< dimXYZ(1) << " " << dimXYZ(2) << std::endl;
-
-
+    out << "boundingBox = [ (" << bBox.minVertex(0)
+                               << " "
+                               << bBox.minVertex(1)
+                               << " "
+                               << bBox.minVertex(2)
+                               << ") ("
+                               << bBox.maxVertex(0)
+                               << " "
+                               << bBox.maxVertex(1)
+                               << " "
+                               << bBox.maxVertex(2)
+                               << ") ]"
+                               << std::endl;
     return out.str();
 }
 
@@ -780,6 +795,7 @@ void PSystem::readBoundariesData(std::string fileName)
                 }
             }
         }
+        bBox.setBoundingBox(boundaries);
     } else {
         std::cout << "Boundaries data file " << fileName << " is not found." << std::endl;
     }
@@ -787,7 +803,7 @@ void PSystem::readBoundariesData(std::string fileName)
 
 void PSystem::readParams(std::string fileName)
 {
-    double dimX = 0, dimY = 0, dimZ = 0; // System's dimensions
+    //double dimX = 0, dimY = 0, dimZ = 0; // System's dimensions
 
     std::ifstream isFile;
     std::stringstream ss;
@@ -802,12 +818,12 @@ void PSystem::readParams(std::string fileName)
             while (ss >> parameter) {
                 parameters.push_back(parameter);
             }
-            if (parameters.at(0) == "system_dimensions") {
+            /*if (parameters.at(0) == "system_dimensions") {
                 dimX = std::stod(parameters.at(1));
                 dimY = std::stod(parameters.at(2));
                 dimZ = std::stod(parameters.at(3));
                 dimXYZ << dimX, dimY, dimZ;
-            }
+            }*/
             if (parameters.at(0) == "random_particles") {
                 for (int i = 0; i < std::stoi(parameters.at(1)); i++){
                     addParticle();
