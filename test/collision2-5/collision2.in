@@ -1,5 +1,5 @@
 time_step 1
-end_time 100
+end_time 0
 system_dimensions 100 100 0
 eps 0
 G 1
