@@ -1,5 +1,5 @@
- #include "psystem.h"
-
+#include "psystem.h"
+#include <random>
 
 Particle::Particle()
 {
@@ -271,14 +271,23 @@ void PSystem::addParticle() {
 void PSystem::setRandom(Particle& particle)
 {
     //set random coordinates
-    particle.r.setRandom();
+    //particle.r.setRandom();
+    std::random_device rd;
+    std::default_random_engine generator(rd());
+    std::uniform_real_distribution<double> distribution(-1.0, 1.0);
+    for (int i = 0; i < particle.r.size(); i++) {
+        particle.r(i)= distribution(generator);
+    }
     particle.r = particle.r.array().abs();
     particle.r = bBox.minVertex
                  + particle.r.cwiseProduct(bBox.maxVertex - bBox.minVertex);
 
     //set random speed
     double lengthpct = 0.1; // max percent of psystem size per second to move
-    particle.v.setRandom();
+    //particle.v.setRandom();
+    for (int i = 0; i < particle.v.size(); i++) {
+        particle.v(i)= distribution(generator);
+    }
     particle.v = particle.v.cwiseProduct((bBox.maxVertex - bBox.minVertex)
                                          * lengthpct);
 }
@@ -321,12 +330,15 @@ Eigen::Vector3d PSystem::ljForce(const Particle& p1, const Particle& p2)
     Eigen::Vector3d r; // Radius-vector of p2 relative to p1
     double rm = 1; // Distance at which the potential reaches its minimum (F=0)
     double epsilon = 1;
+    double rNorm; // Distance from p2 to p1
 
     r = p2.r - p1.r;
+    rNorm = r.norm();
+
     force = 12
             * epsilon
-            * (pow(rm, 6)/pow(r.norm(),7) - pow(rm, 12)/pow(r.norm(), 13))
-            * r/r.norm();
+            * (pow(rm, 6)/pow(rNorm,7) - pow(rm, 12)/pow(rNorm, 13))
+            * r/rNorm;
 
     return force;
 }
@@ -335,7 +347,8 @@ void PSystem::calcAccel()
 {
     int pNum; // Number of particles
     Eigen::Matrix<Eigen::Vector3d, Eigen::Dynamic, Eigen::Dynamic> forcesM;
-    Eigen::Vector3d netForce;
+    //Eigen::Vector3d netForce;
+    std::vector<Eigen::Vector3d> netForces;
 
     pNum = particles.size();
     forcesM.resize(pNum, pNum);
@@ -347,14 +360,17 @@ void PSystem::calcAccel()
             forcesM(j, i) = - forcesM(i, j);
         }
     }
-
+    netForces.resize(pNum, Eigen::Vector3d(0, 0, 0));
+    //netForce = forcesM.rowwise().sum()(1,1); // error???
     #pragma omp parallel for
     for (int i = 0; i < pNum; ++i) {
-        netForce << 0, 0, 0;
+        //netForce << 0, 0, 0;
         for (int j = 0; j < pNum; ++j){
-            netForce += forcesM(i, j);
+            //netForce += forcesM(i, j);
+            netForces.at(i) += forcesM(i, j);
         }
-        particles[i].a = netForce / particles[i].m;
+        //particles[i].a = netForce / particles[i].m;
+        particles[i].a = netForces.at(i)/ particles[i].m;
                // + g
                // + centralForceCoef / ((particles[i].r - centralForceCenter).squaredNorm() + DBL_MIN);
 
@@ -365,22 +381,25 @@ double PSystem::estimateDeltaT()
 {
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> collisionTimeM;
     int pNum;
-    double relr, relv, rela, dt;
+    double relr, relv, rela, dt, dtFrac;
+    dtFrac = 0.01;
     pNum = particles.size();
     collisionTimeM.resize(pNum, pNum);
     collisionTimeM.fill(DBL_MAX);
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int i = 0; i < pNum; i++) {
+        //#pragma omp parallel for
         for (int j = i + 1 ; j < pNum; j++) {
             relr = (particles[i].r - particles[j].r).norm();
             relv = (particles[i].v - particles[j].v).norm();
-            rela = (ptpForce(particles[i],particles[j])/particles[i].m - ptpForce(particles[j],particles[i])/particles[j].m).norm();
+            //rela = (ptpForce(particles[i],particles[j])/particles[i].m - ptpForce(particles[j],particles[i])/particles[j].m).norm();
+            rela = (particles[i].a - particles[j].a).norm();
             //collisionTimeM(i,j) = relr / relv;
             collisionTimeM(i,j) =  std::min(relr / relv, sqrt(relr / rela));
         }
     }
 
-    dt = collisionTimeM.minCoeff();
+    dt = dtFrac * collisionTimeM.minCoeff();
 
     return dt;
 }
@@ -407,14 +426,17 @@ double PSystem::EpotPtp(Particle& p1, Particle& p2)
 double PSystem::ljEpot(const Particle& p1, const Particle& p2)
 {
     double Epot;
-    Eigen::Vector3d r; // Radius-vector of p2 relative to p1
+    //Eigen::Vector3d r; // Radius-vector of p2 relative to p1
+    double r, rmOverRpow6, rmOverRPow12; // Distance from p2 to p1
     double rm = 1; // The distance at which the potential reaches its minimum (F=0))
     double epsilon = 1;
 
-    r = p2.r - p1.r;
-    
-    Epot = epsilon * (pow(rm/r.norm(), 12) - 2 * pow(rm/r.norm(), 6));
+    r = (p2.r - p1.r).norm();
+    rmOverRpow6 = pow(rm/r, 6);
+    rmOverRPow12 = pow(rmOverRpow6 , 2);
 
+    //Epot = epsilon * (pow(rm/r, 12) - 2 * pow(rm/r, 6));
+    Epot = epsilon * (rmOverRPow12 - 2 * rmOverRpow6);
     return Epot;
 }
 
@@ -458,12 +480,13 @@ void PSystem::EtotInitSet()
 
 void PSystem::tsForwardEuler(double dt)
 {
-    calcAccel();
+    //calcAccel();
     for (auto& particle : particles){
         particle.r0 = particle.r; // save previous position of particle
         particle.r += particle.v * dt;
         particle.v += particle.a * dt;
     }
+    calcAccel();
 }
 
 void PSystem::tsLeapfrog(double dt)
@@ -483,7 +506,7 @@ void PSystem::tsLeapfrog(double dt)
 
 void PSystem::tsRK4(double dt)
 {
-    calcAccel();
+    //calcAccel(); // Shoud run calcAccel before first timestep!!!
 
     for (auto& p : particles) {
         p.A.at(0) = p.a;
@@ -503,6 +526,7 @@ void PSystem::tsRK4(double dt)
         p.v += (p.A.at(0) + 4 * p.A.at(1) + p.a) * dt / 6;
     }
 
+    calcAccel();
 }
 
 
@@ -521,7 +545,7 @@ void PSystem::evolve()
     int nt = 0; //number of time steps
     double dt = timeStep;
     double timeStepInit = timeStep;
-    int precision = 8;
+    int precision = 15;
     double writeTime = 0;
     methodFunctionPTR methodFunction = methodNameToMethodPtr(methodName);
     //double EPSILON;
@@ -529,9 +553,9 @@ void PSystem::evolve()
     //EPSILON = timeStep;
 
     EtotInitSet();
-    calcAccel();
+    calcAccel(); // Initial accelerations of particals.
     
-    dt = std::min(timeStepInit, 0.1 * estimateDeltaT());
+    dt = std::min({timeStepInit, estimateDeltaT(), writeInterval});
     timeStep = dt;
     stateToFile(writePr, outFile);
     info(precision);
@@ -545,7 +569,8 @@ void PSystem::evolve()
             stateToFile(writePr, outFile);
             writeTime = 0;
         }
-        dt = std::min(timeStepInit, 0.01 * estimateDeltaT());
+        //dt = std::min(timeStepInit, estimateDeltaT());
+        dt = std::min({timeStepInit, estimateDeltaT(), writeInterval});
         if ((writeTime + dt) > writeInterval) // Check dt for not to overshoot write time
             dt = writeInterval - writeTime;
         timeStep = dt;
@@ -628,7 +653,8 @@ void PSystem::info(int p)
     std::streamsize defaultPrecision = std::cout.precision();
 
     std::cout << std::setprecision(p);
-    std::cout << std::fixed;
+    //std::cout << std::fixed;
+    std::cout << std::scientific;
     std::cout << "Time = " << time;
     std::cout << "\tTime step = " << timeStep << std::endl;
     std::cout << std::scientific;
@@ -883,9 +909,10 @@ void PSystem::checkBoundaries()
     LineSegment path;
     Eigen::Vector3d dr; //Out of boundary displacement of particle
     
-    /*std::ofstream osFile;
-    osFile.open("collisions.dat", std::ofstream::out | std::ofstream::app); // Output, append
-    */
+    //std::ofstream osFile;
+    //osFile.open("collisions.dat", std::ofstream::out | std::ofstream::app); // Output, append
+
+
     do {
         xFlag = false;
         for (auto& particle : particles) {
@@ -895,11 +922,13 @@ void PSystem::checkBoundaries()
                 xPoint = xPointN.at(0);
                 n0 = xPointN.at(1);
                 if (!std::isnan(xPoint(0))) {
+
                     /*
                     osFile << "NEW COLLISION!" << " " << time << " " << particle.id << std::endl;
                     osFile << boundary.vertices.at(0) <<  "\n "<< std::endl;
                     osFile << xPoint << "\n n0 \n " << n0 << "\n r \n " << particle.r << "\n r0 \n " << particle.r0 << "\n v\n " << particle.v << std::endl;
                     */
+
                     particle.v = particle.v - 2 * particle.v.dot(n0) * n0;
                     dr = particle.r - xPoint;
                     dr = dr - 2 * dr.dot(n0) * n0;

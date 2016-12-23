@@ -5,6 +5,7 @@ int Particle::pCount = 0;
 
 int main(int argc, char **argv)
 {
+    Eigen::initParallel();
     PSystem psystem2;
     /*psystem2.timeStep = 0.01;
     psystem2.endTime = 10;
