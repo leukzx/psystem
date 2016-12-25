@@ -7,6 +7,7 @@
 #include <iomanip>      // std::setprecision
 #include <cfloat>       // DBL_DIG (for output precision)
 #include <vector>
+#include <libconfig.h++>
 #include "intersections/intersections.h"
 
 class boundingBox { //Axis-aligned bounding box
@@ -105,6 +106,8 @@ class PSystem {
     void readParams(std::string fileName);
     void readParticlesData(std::string fileName);
     void readBoundariesData(std::string fileName);
+
+    int readConfig(const char *fileName); // Set parameters using libconfig
 
     //add particle
     void addParticle(double, Eigen::Vector3d, Eigen::Vector3d);

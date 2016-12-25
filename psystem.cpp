@@ -65,7 +65,7 @@ PSystem::PSystem() // Default constructor
 {
     G = 1;
     eps = 0; 
-    timeStep = 0;
+    timeStep = DBL_MAX;
     time = 0;
     endTime = 0;
     potentialName = "LJpotential";
@@ -894,6 +894,133 @@ void PSystem::readParams(std::string fileName)
     } else {
         std::cout << "Configuration file " << fileName << " is not found." << std::endl;
     }
+}
+
+int PSystem::readConfig(const char *fileName)
+{
+    libconfig::Config cfg;
+
+    // Read the file. If there is an error, report it and exit.
+    try {
+        cfg.readFile(fileName);
+    }
+    catch(const libconfig::FileIOException &fioex) {
+        std::cerr << "I/O error while reading file." << std::endl;
+        throw;
+    }
+    catch(const libconfig::ParseException &pex) {
+        std::cerr << "Parse error at " << pex.getFile() << ":" << pex.getLine()
+                  << " - " << pex.getError() << std::endl;
+        throw;
+    }
+    try{
+        try {
+            timeStep = cfg.lookup("time_step");
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'time_step' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            endTime = cfg.lookup("end_time");
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'end_time' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            std::string integration_method = cfg.lookup("integration_method");
+            methodName = integration_method;
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'integration_method' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            std::string interaction_potential = cfg.lookup("interaction_potential");
+            potentialName = interaction_potential;
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'interaction_potential' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            std::string output_file = cfg.lookup("output_file");
+            outFile = output_file;
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'output_file' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            std::string particles_data_file = cfg.lookup("particles_data_file");
+            readParticlesData(particles_data_file);
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'particles_data_file' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            writePr = cfg.lookup("write_precision");
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'write_precision' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            writeInterval =  cfg.lookup("write_interval");
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'write_interval' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            std::string boundaries_data_file = cfg.lookup("boundaries_data_file");
+            readBoundariesData(boundaries_data_file);
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            std::cerr << "No 'write_interval' setting in configuration file."
+                      << std::endl;
+            throw;
+        }
+
+        try {
+            int random_particles = cfg.lookup("random_particles");
+            for (int i = 0; i < random_particles; i++){
+                addParticle();
+                setRandom(particles.back());
+            }
+        }
+        catch(const libconfig::SettingNotFoundException &nfex) {
+            //std::cerr << "No 'write_interval' setting in configuration file." << std::endl;
+        }
+
+        //
+    }
+    catch (const libconfig::SettingTypeException &stex) {
+        std::cout << "Something wrong in the settings file with '"
+                  << stex.getPath() << "'." << std::endl;
+        throw;
+        //return(EXIT_FAILURE);
+    }
+
+    return(EXIT_SUCCESS);
 }
 
 void PSystem::checkBoundaries()

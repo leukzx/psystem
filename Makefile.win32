@@ -1,27 +1,30 @@
 CC = i686-w64-mingw32-g++
 CFLAGS = -O3 -fopenmp -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c -static-libgcc -static-libstdc++
 BUILDDIR = win32
+LIB_DIR = win32/lib
+INCLUDE_DIR = win32/include
+
 #CFLAGS = -O0 -std=c++11 -Wall -fexceptions -c -g
 
 all: particles psdistance
 
 particles: main.o psystem.o intersections.o
-	$(CC) -o $(BUILDDIR)/particles.exe $(BUILDDIR)/main.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -lgomp
+	$(CC) -I$(INCLUDE_DIR) -L$(LIB_DIR) -o $(BUILDDIR)/particles.exe $(BUILDDIR)/main.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -lconfig++ -lgomp 
 
 psdistance: psdistance.o psystem.o intersections.o
-	$(CC) $ -o $(BUILDDIR)/psdistance.exe $(BUILDDIR)/psdistance.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -lgomp
+	$(CC) -I$(INCLUDE_DIR) -L$(LIB_DIR) -o $(BUILDDIR)/psdistance.exe $(BUILDDIR)/psdistance.o $(BUILDDIR)/psystem.o $(BUILDDIR)/intersections.o -lconfig++ -lgomp 
 
 main.o: main.cpp psystem.h
-	$(CC) $(CFLAGS) main.cpp -o $(BUILDDIR)/main.o
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) main.cpp -o $(BUILDDIR)/main.o
 
 psystem.o: psystem.cpp psystem.h intersections/intersections.h
-	$(CC) $(CFLAGS) psystem.cpp -o $(BUILDDIR)/psystem.o
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) psystem.cpp -o $(BUILDDIR)/psystem.o
 
 intersections.o: intersections/intersections.cpp intersections/intersections.h
 	$(CC) $(CFLAGS) intersections/intersections.cpp -o $(BUILDDIR)/intersections.o
 
 psdistance.o: psdistance.cpp psystem.h
-	$(CC) $(CFLAGS) psdistance.cpp -o $(BUILDDIR)/psdistance.o	
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) psdistance.cpp -o $(BUILDDIR)/psdistance.o	
 
 clean:
-	rm -rf  $(BUILDDIR)/*
+	rm -rf  $(BUILDDIR)/*.o $(BUILDDIR)/*.exe

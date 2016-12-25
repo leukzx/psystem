@@ -1,6 +1,6 @@
 CC = g++
-#CFLAGS = -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c
-CFLAGS = -O0 -std=c++11 -Wall -fexceptions -c -g
+CFLAGS = -O3 -std=c++11 -Wall -fexceptions -fexpensive-optimizations -c -fopenmp
+#CFLAGS = -O0 -std=c++11 -Wall -fexceptions -c -g
 
 all: particles psdistance
 

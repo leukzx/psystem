@@ -1,5 +1,5 @@
 time_step 1
-end_time 0
+end_time 10
 system_dimensions 100 100 0
 eps 0
 G 1
@@ -10,4 +10,4 @@ write_precision 15
 write_interval 0.1
 particles_input_file 0.dat
 boundaries_input_file boundaries.dat
-random_particles 1000
+random_particles 994
