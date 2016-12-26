@@ -827,6 +827,7 @@ void PSystem::readBoundariesData(std::string fileName)
     }
 }
 
+/*
 void PSystem::readParams(std::string fileName)
 {
     //double dimX = 0, dimY = 0, dimZ = 0; // System's dimensions
@@ -844,12 +845,7 @@ void PSystem::readParams(std::string fileName)
             while (ss >> parameter) {
                 parameters.push_back(parameter);
             }
-            /*if (parameters.at(0) == "system_dimensions") {
-                dimX = std::stod(parameters.at(1));
-                dimY = std::stod(parameters.at(2));
-                dimZ = std::stod(parameters.at(3));
-                dimXYZ << dimX, dimY, dimZ;
-            }*/
+
             if (parameters.at(0) == "random_particles") {
                 for (int i = 0; i < std::stoi(parameters.at(1)); i++){
                     addParticle();
@@ -895,6 +891,7 @@ void PSystem::readParams(std::string fileName)
         std::cout << "Configuration file " << fileName << " is not found." << std::endl;
     }
 }
+*/
 
 int PSystem::readConfig(const char *fileName)
 {

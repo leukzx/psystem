@@ -103,7 +103,7 @@ class PSystem {
     void (PSystem::*methodNameToMethodPtr(std::string))(double);
     
     //Parameters reading from files
-    void readParams(std::string fileName);
+    //void readParams(std::string fileName);
     void readParticlesData(std::string fileName);
     void readBoundariesData(std::string fileName);
 
