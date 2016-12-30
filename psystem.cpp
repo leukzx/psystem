@@ -1,5 +1,5 @@
 #include "psystem.h"
-#include <random>
+
 
 Particle::Particle()
 {
@@ -589,6 +589,183 @@ void PSystem::evolve()
     }
     
     std::cout << "Number of time steps: " << nt << std::endl;
+}
+
+
+int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
+{
+    try {
+        //int deviceType = CL_DEVICE_TYPE_GPU;
+
+        std::vector<cl::Platform> platformList;
+
+        cl::Platform platform;
+        std::string platformName;
+
+        std::vector<cl::Device> deviceList;
+        cl::Device device;
+        std::string deviceName;
+
+
+        std::cout << "Available platforms:" << std::endl;
+        cl::Platform::get(&platformList);
+        for (auto& pltfm : platformList ) {
+            pltfm.getInfo((cl_platform_info)CL_PLATFORM_NAME,
+                             &platformName);
+            std::cout << " " << platformName << std::endl;
+
+            try {
+                pltfm.getDevices(CL_DEVICE_TYPE_ALL, &deviceList);
+                for(auto& deviceItem : deviceList) {
+                    deviceItem.getInfo((cl_device_info)CL_DEVICE_NAME, &deviceName);
+                    std::cout << "  " << deviceName << std::endl;
+
+                }
+            } catch (const cl::Error &error) {
+                std::cerr << "  Error while getting device list: "
+                          << error.what()
+                          << '(' << error.err() << ')' << std::endl;
+            }
+        }
+
+        /*
+
+        // Select first gpu device in device list
+        for (auto& pltfm : platformList){
+            try {
+                pltfm.getDevices(deviceType, &deviceList);
+                platform = pltfm;
+                device = deviceList.at(0);
+                break;
+            } catch (const cl::Error error) {
+                continue;
+            }
+        }
+        device.getInfo((cl_device_info)CL_DEVICE_NAME, &deviceName);
+        std::cout << "Using device: " << deviceName << std::endl;
+        */
+
+
+        /*cl_context_properties contextProps[] =
+            {CL_CONTEXT_PLATFORM,
+             (cl_context_properties)(platform()), 0};
+        */
+
+        //The constructor attempts to use the first platform that
+        //has a device of the specified type.
+        //cl::Context context(deviceType, contextProps);
+        //cl::Context context(device);
+        cl::Context context(deviceType);
+
+        std::vector<cl::Device> devices =
+              context.getInfo<CL_CONTEXT_DEVICES>();
+
+        device = devices.at(0);
+        device.getInfo((cl_device_info)CL_DEVICE_NAME, &deviceName);
+        std::cout << "Selected device: " << deviceName << std::endl;
+
+        // Kernel source
+        std::ifstream file(kernelSourceFile);
+        std::string kernelSource(std::istreambuf_iterator<char>(file),
+                (std::istreambuf_iterator<char>()));
+        file.close();
+
+        // Creates vector of kernel sources. There are may be more then 1.
+        cl::Program::Sources vKernelSource( 1, std::make_pair(kernelSource.c_str(),
+                                  kernelSource.length()+1));
+        // Creates an OpenCL program object for a context
+        // and loads the source code specified by the text strings in each
+        // element of the vector sources into the program object
+        cl::Program program(context, vKernelSource);
+        try {
+            program.build(devices);
+        } catch (cl::Error& error) {
+            std::cerr << "Program build from kernel sources failed! "
+                      << error.what()
+                      << '(' << error.err() << ')' << std::endl;
+            std::cerr << "Retrieving  logs ...:" << std::endl;
+            for (auto& dvce : devices) {
+                std::cerr << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dvce)
+                      << std::endl;
+            }
+            return EXIT_FAILURE;
+        }
+
+        // Creates a kernel object
+        cl::Kernel kernel(program, "stepInTime");
+
+        // Prepare data to copy to device buffer
+        size_t vLen = particles.size();
+        size_t vSize = vLen * sizeof(cl_float4);
+
+        cl_float4 *h_ParticlesR, *h_ParticlesV;
+        h_ParticlesR = new cl_float4[vLen];
+        h_ParticlesV = new cl_float4[vLen];
+
+
+        for (size_t i = 0; i < vLen; ++i) {
+            for (unsigned int j = 0; j < particles.at(i).r.size(); ++j) {
+                 h_ParticlesR[i].s[j] = (float) particles.at(i).r(j);
+                 h_ParticlesV[i].s[j] = (float) particles.at(i).v(j);
+            }
+            h_ParticlesR[i].s[3] = (float) particles.at(i).m;
+        }
+
+        cl_float d_dt  = (float) timeStep;
+
+        // Creates device buffers
+        cl::Buffer d_pos, d_vel, d_newVel;
+        d_pos = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
+        d_vel = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
+        d_newVel = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
+
+        // Set kernel arguments
+        kernel.setArg(0, d_pos);
+        kernel.setArg(1, d_vel);
+        kernel.setArg(2, d_dt);
+
+        // Creates queue with profiling enabled
+        cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
+
+        cl::Event event;
+
+        //Enqueue a command to write to a buffer object from host memory
+        queue.enqueueWriteBuffer(d_pos, CL_TRUE, 0, vSize, h_ParticlesR);
+        queue.enqueueWriteBuffer(d_vel, CL_TRUE, 0, vSize, h_ParticlesV, NULL, &event);
+
+        //std::cout << stateP(15) << std::endl;
+
+        queue.enqueueNDRangeKernel(kernel,
+                                   cl::NullRange, cl::NDRange(vLen),
+                                   cl::NullRange, NULL, &event);
+        event.wait();
+
+        cl_ulong start=
+                event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+        cl_ulong end=
+                event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+        double time = 1.e-9 * (end-start);
+        std::cout << "Time for kernel to execute: " << time << std::endl;
+
+        queue.enqueueReadBuffer(d_pos, CL_TRUE, 0, vSize, h_ParticlesR);
+        queue.enqueueReadBuffer(d_vel, CL_TRUE, 0, vSize, h_ParticlesV);
+
+        for (size_t i = 0; i < vLen; ++i) {
+            for (unsigned int j = 0; j < particles.at(i).r.size(); ++j) {
+                 particles.at(i).r(j) = h_ParticlesR[i].s[j];
+                 particles.at(i).v(j) = h_ParticlesV[i].s[j];
+            }
+            particles.at(i).m = h_ParticlesR[i].s[3];
+        }
+        //std::cout << stateP(15) << std::endl;
+
+    } catch (cl::Error error) {
+        std::cerr << "Caught exception: " << error.what()
+                  << '(' << error.err() << ')'
+                  << std::endl;
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
 
 /*void PSystem::checkBoundsCyclic()

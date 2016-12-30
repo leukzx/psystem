@@ -6,6 +6,14 @@ int Particle::pCount = 0;
 
 int main(int argc, char **argv)
 {
+
+    if( argc < 3) {
+      std::cerr
+        << "Use: settingsFile {cpu|opencl} kernelSourceFile"
+        << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
     Eigen::initParallel();
     PSystem psystem;
     /*psystem2.timeStep = 0.01;
@@ -34,9 +42,16 @@ int main(int argc, char **argv)
         return(EXIT_FAILURE);
     }
 
+    const std::string platformName(argv[2]);
+    int deviceType = platformName.compare("opencl")?
+                CL_DEVICE_TYPE_CPU:CL_DEVICE_TYPE_GPU;
+    if (deviceType == CL_DEVICE_TYPE_GPU) {
+        psystem.evolveOpenCL(deviceType, argv[3]);
+    } else {
+        //std::cout << psystem2.EpotPtp(psystem2.particles[0], psystem2.particles[1]);
+        psystem.evolve();
+    }
 
-    //std::cout << psystem2.EpotPtp(psystem2.particles[0], psystem2.particles[1]);
-    psystem.evolve();
     std::cout << psystem.parameters() << std::endl;
     return 0;
 }

@@ -1,3 +1,5 @@
+#define __CL_ENABLE_EXCEPTIONS
+
 #include <iostream>
 #include <cmath>
 //#include <eigen3/Eigen/Dense>
@@ -9,6 +11,8 @@
 #include <vector>
 #include <libconfig.h++>
 #include "intersections/intersections.h"
+#include <CL/cl.hpp>
+#include <random>
 
 class boundingBox { //Axis-aligned bounding box
  public:
@@ -148,6 +152,7 @@ class PSystem {
 
     // Advance in time
     void evolve();
+    int evolveOpenCL(int& deviceType, const char *kernelSourceFile);
     std::string stateE(int); // energy state of the system string
     std::string stateP(int); // all particles state string
     std::string parameters();
