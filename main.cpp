@@ -43,10 +43,12 @@ int main(int argc, char **argv)
     }
 
     const std::string platformName(argv[2]);
-    int deviceType = platformName.compare("opencl")?
-                CL_DEVICE_TYPE_CPU:CL_DEVICE_TYPE_GPU;
-    if (deviceType == CL_DEVICE_TYPE_GPU) {
-        psystem.evolveOpenCL(deviceType, argv[3]);
+
+    if (platformName.compare("cpu")) {
+        int deviceType = platformName.compare("openclgpu")?
+                    CL_DEVICE_TYPE_CPU:CL_DEVICE_TYPE_GPU;
+        //if (deviceType == CL_DEVICE_TYPE_GPU) {
+            psystem.evolveOpenCL(deviceType, argv[3]);
     } else {
         //std::cout << psystem2.EpotPtp(psystem2.particles[0], psystem2.particles[1]);
         psystem.evolve();

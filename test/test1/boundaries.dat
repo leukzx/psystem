@@ -1,8 +1,12 @@
+#Vertices of boundaries should be listed in counter clockwise order 
+#from inside of area. Back facing boundaries 
+#(triangles) are transparent to particles.
+
 #Boundary Left
 -100 -100 -100
--100 -100  100
--100  100  100
 -100  100 -100
+-100  100  100
+-100 -100  100
 
 
 #Boundary Right
@@ -14,23 +18,23 @@
 
 #Boundary Top
 -100 100  100
- 100 100  100
- 100 100 -100
 -100 100 -100
+ 100 100 -100
+ 100 100  100
 
 
 #Boundary Bottom left
 -100 -100  100
--100 -100 -100
--10 -100 -100
 -10 -100  100
+-10 -100 -100
+-100 -100 -100
 
 
 #Boundary Bottom right
 10 -100  100
-10 -100 -100
-100 -100 -100
 100 -100  100
+100 -100 -100
+10 -100 -100
 
 
 #Boundary Front
@@ -42,6 +46,6 @@
 
 #Boundary Back
 -100 100 -100
-100 100 -100
-100 -100 -100
 -100 -100 -100
+100 -100 -100
+100 100 -100

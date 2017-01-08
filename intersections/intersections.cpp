@@ -128,8 +128,8 @@ Eigen::Vector3d intersectionPoint(LineSegment& segment, Triangle& tri)
     Plane plane(tri.r[0], tri.r[1], tri.r[2]);
     Line line(segment.r[0], segment.r[1]);
     tuv = intersectionPointTUV(line, plane);
-    if ((tuv(0) >= 0) & (tuv(0) <= 1) &
-            (tuv(1)>=0) & (tuv(2) >=0) & (tuv(1) + tuv(2) <=1)) {
+    if ((tuv(0) >= 0) && (tuv(0) <= 1) &&
+            (tuv(1)>=0) && (tuv(2) >=0) && (tuv(1) + tuv(2) <=1)) {
         //    (tuv(1) + tuv(2) >=0) & (tuv(1) + tuv(2) <=1)) {
         xyz = line.r[0] + (line.r[1] - line.r[0]) * tuv(0);
         //xyz = intersectionPoint(line, plane);

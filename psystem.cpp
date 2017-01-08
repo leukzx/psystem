@@ -666,17 +666,17 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
 
         // Kernel source
         std::ifstream file(kernelSourceFile);
-        std::string kernelSource(std::istreambuf_iterator<char>(file),
+        std::string kernelSourceStr(std::istreambuf_iterator<char>(file),
                 (std::istreambuf_iterator<char>()));
         file.close();
 
-        // Creates vector of kernel sources. There are may be more then 1.
-        cl::Program::Sources vKernelSource( 1, std::make_pair(kernelSource.c_str(),
-                                  kernelSource.length()+1));
+        // Creates vector of kernel sources. ?There are may be more then 1?
+        cl::Program::Sources kernelSourceVec( 1, std::make_pair(kernelSourceStr.c_str(),
+                                  kernelSourceStr.length()+1));
         // Creates an OpenCL program object for a context
         // and loads the source code specified by the text strings in each
         // element of the vector sources into the program object
-        cl::Program program(context, vKernelSource);
+        cl::Program program(context, kernelSourceVec);
         try {
             program.build(devices);
         } catch (cl::Error& error) {
@@ -691,38 +691,98 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
             return EXIT_FAILURE;
         }
 
-        // Creates a kernel object
-        cl::Kernel kernel(program, "stepInTime");
 
-        // Prepare data to copy to device buffer
+
+        // Prepares data to copy to device buffer
         size_t vLen = particles.size();
         size_t vSize = vLen * sizeof(cl_float4);
 
-        cl_float4 *h_ParticlesR, *h_ParticlesV;
-        h_ParticlesR = new cl_float4[vLen];
-        h_ParticlesV = new cl_float4[vLen];
-
+        cl_float4 *h_pos, *h_vel;
+        h_pos = new cl_float4[vLen];
+        h_vel = new cl_float4[vLen];
+        cl_float *h_est;
+        h_est = new cl_float[vLen * vLen];
 
         for (size_t i = 0; i < vLen; ++i) {
-            for (unsigned int j = 0; j < particles.at(i).r.size(); ++j) {
-                 h_ParticlesR[i].s[j] = (float) particles.at(i).r(j);
-                 h_ParticlesV[i].s[j] = (float) particles.at(i).v(j);
+            for (unsigned int  j = 0; j < particles.at(i).r.size(); ++j) {
+                 h_pos[i].s[j] = (float) particles.at(i).r(j);
+                 h_vel[i].s[j] = (float) particles.at(i).v(j);
             }
-            h_ParticlesR[i].s[3] = (float) particles.at(i).m;
+            h_pos[i].s[3] = (float) particles.at(i).m;
+            h_vel[i].s[3] = 0.0f;
         }
 
-        cl_float d_dt  = (float) timeStep;
+        // Array with all vertices of triangles in all boundaries
+
+        cl_int vNum = 0; // Number of vertices in all boundaries
+        for (auto& boundary : boundaries) {
+            if (boundary.vertices.size() > 2) {
+                // Number of triangles multiplied by 3 = number of vertices
+                vNum += 3 * (boundary.vertices.size() - 3 + 1);
+            }
+        }
+        cl_float4 *h_tri;
+        h_tri = new cl_float4[vNum];
+
+        // Fills h_tri array with vertices of all triangles of all boundaries
+        size_t c = 0; // Vertices counter
+        for (auto& boundary : boundaries) {
+            for (unsigned int i = 1 ; i < boundary.vertices.size() - 1; i++) {
+                unsigned int l[] = {0, i, i + 1};
+                for (unsigned int k : l){
+                    for (unsigned int j = 0;
+                         j < boundary.vertices.at(k).size(); ++j) {
+                        h_tri[c].s[j] = boundary.vertices.at(k)(j);
+                    }
+                    h_tri[c].s[3] = 0;
+                    ++c;
+                }
+            }
+        }
+
+        cl_float dt  = (float) timeStep;
 
         // Creates device buffers
-        cl::Buffer d_pos, d_vel, d_newVel;
+        cl::Buffer d_pos, d_vel, d_newPos, d_newVel, d_acc, d_est, d_tri;
         d_pos = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
         d_vel = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
+        d_newPos = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
         d_newVel = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
+        d_acc = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
+        d_est = cl::Buffer(context, CL_MEM_READ_WRITE,
+                           vLen * vLen * sizeof(cl_float));
+        d_tri = cl::Buffer(context, CL_MEM_READ_WRITE,
+                           vNum * sizeof(cl_float4));
 
-        // Set kernel arguments
-        kernel.setArg(0, d_pos);
-        kernel.setArg(1, d_vel);
-        kernel.setArg(2, d_dt);
+        // Creates a kernel objects
+        cl::Kernel stepInTime(program, "tsForwardEulerCL");
+        cl::Kernel estimateDt(program, "estimateDtCL");
+        cl::Kernel calcAccCL(program, "calcAccCL");
+        cl::Kernel checkBoundariesCL(program, "checkBoundariesCL");
+
+        // Set stepInTime kernel arguments
+        stepInTime.setArg(0, d_pos);
+        stepInTime.setArg(1, d_vel);
+        stepInTime.setArg(2, d_acc);
+        stepInTime.setArg(3, dt);
+        stepInTime.setArg(4, d_newPos);
+
+        // Set estimateDt kernel arguments
+        estimateDt.setArg(0, d_pos);
+        estimateDt.setArg(1, d_vel);
+        estimateDt.setArg(2, d_acc);
+        estimateDt.setArg(3, d_est);
+
+        // Set calcAccCL kernel arguments
+        calcAccCL.setArg(0, d_pos);
+        calcAccCL.setArg(1, d_acc);
+
+        // Set checkBoundariesCL kernel arguments
+        checkBoundariesCL.setArg(0, d_pos);
+        checkBoundariesCL.setArg(1, d_vel);
+        checkBoundariesCL.setArg(2, d_newPos);
+        checkBoundariesCL.setArg(3, d_tri);
+        checkBoundariesCL.setArg(4, vNum);
 
         // Creates queue with profiling enabled
         cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
@@ -730,34 +790,120 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
         cl::Event event;
 
         //Enqueue a command to write to a buffer object from host memory
-        queue.enqueueWriteBuffer(d_pos, CL_TRUE, 0, vSize, h_ParticlesR);
-        queue.enqueueWriteBuffer(d_vel, CL_TRUE, 0, vSize, h_ParticlesV, NULL, &event);
+        queue.enqueueWriteBuffer(d_pos, CL_TRUE, 0, vSize, h_pos, NULL, &event);
+        queue.enqueueWriteBuffer(d_vel, CL_TRUE, 0, vSize, h_vel, NULL, &event);
+        queue.enqueueWriteBuffer(d_tri, CL_TRUE, 0,
+                                 vNum * sizeof(cl_float4), h_tri, NULL, &event);
 
-        //std::cout << stateP(15) << std::endl;
-
-        queue.enqueueNDRangeKernel(kernel,
+        // Initial acceleration
+        queue.enqueueNDRangeKernel(calcAccCL,
                                    cl::NullRange, cl::NDRange(vLen),
                                    cl::NullRange, NULL, &event);
         event.wait();
 
-        cl_ulong start=
+        // Start time
+        cl_ulong start =
                 event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+
+        // Initial timestep
+        queue.enqueueNDRangeKernel(estimateDt,
+                                   cl::NullRange, cl::NDRange(vLen, vLen),
+                                   cl::NullRange, NULL, &event);
+        event.wait();
+        queue.enqueueReadBuffer(d_est, CL_TRUE, 0,
+                                vLen * vLen * sizeof(cl_float), h_est);
+        std::cout << dt << std::endl;
+        dt = 0.01 * (*std::min_element(h_est, h_est + vLen * vLen));
+        dt = std::min({(double) dt, timeStep});
+        std::cout << dt << std::endl;
+
+        std::cout << stateP(15) << std::endl;
+
+
+        for (size_t nt = 0; time + dt < endTime; time += dt, ++nt) {
+        //for (size_t nt = 0; nt < 1; time += dt, ++nt) {
+
+            // Move to new positions
+            stepInTime.setArg(3, dt);
+            queue.enqueueNDRangeKernel(stepInTime,
+                                       cl::NullRange, cl::NDRange(vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+
+            // Check and resolve crossing of a boundaries
+            queue.enqueueNDRangeKernel(checkBoundariesCL,
+                                       cl::NullRange, cl::NDRange(vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+
+            // New positions to current positions
+            queue.enqueueCopyBuffer(d_newPos, d_pos, 0, 0, vSize, NULL, &event);
+            event.wait();
+
+            // Get accelerations at current position
+            queue.enqueueNDRangeKernel(calcAccCL,
+                                       cl::NullRange, cl::NDRange(vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+
+            // Estimate time step for next iteration
+            queue.enqueueNDRangeKernel(estimateDt,
+                                       cl::NullRange, cl::NDRange(vLen, vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+            queue.enqueueReadBuffer(d_est, CL_TRUE, 0,
+                                    vLen * vLen * sizeof(cl_float), h_est);
+            dt = 0.01 * (*std::min_element(h_est, h_est + vLen * vLen));
+//            for (int i = 0 ; i < vLen * vLen; ++i) {
+//                std::cout << h_est[i] <<" " ;
+//            }
+//            std::cout << std::endl;
+            dt = std::min({(double) dt, timeStep});
+            std::cout << nt << " " << dt <<" " << time <<std::endl;
+
+            for (size_t i = 0; i < vLen; ++i) {
+                particles.at(i).r0 = particles.at(i).r;
+            }
+            queue.enqueueReadBuffer(d_pos, CL_TRUE, 0, vSize, h_pos);
+            queue.enqueueReadBuffer(d_vel, CL_TRUE, 0, vSize, h_vel);
+
+            for (size_t i = 0; i < vLen; ++i) {
+                for (unsigned int j = 0; j < particles.at(i).r.size(); ++j) {
+                     particles.at(i).r(j) = h_pos[i].s[j];
+                     particles.at(i).v(j) = h_vel[i].s[j];
+                }
+                //particles.at(i).m = h_pos[i].s[3];
+            }
+            //checkBoundaries();
+            //stateToFile(writePr, outFile);
+
+
+        }
+        //std::cout << stateP(15) << std::endl;
+
+        //End time
         cl_ulong end=
                 event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
         double time = 1.e-9 * (end-start);
         std::cout << "Time for kernel to execute: " << time << std::endl;
 
-        queue.enqueueReadBuffer(d_pos, CL_TRUE, 0, vSize, h_ParticlesR);
-        queue.enqueueReadBuffer(d_vel, CL_TRUE, 0, vSize, h_ParticlesV);
+
+        queue.enqueueReadBuffer(d_pos, CL_TRUE, 0, vSize, h_pos);
+        queue.enqueueReadBuffer(d_vel, CL_TRUE, 0, vSize, h_vel);
 
         for (size_t i = 0; i < vLen; ++i) {
             for (unsigned int j = 0; j < particles.at(i).r.size(); ++j) {
-                 particles.at(i).r(j) = h_ParticlesR[i].s[j];
-                 particles.at(i).v(j) = h_ParticlesV[i].s[j];
+                 particles.at(i).r(j) = h_pos[i].s[j];
+                 particles.at(i).v(j) = h_vel[i].s[j];
             }
-            particles.at(i).m = h_ParticlesR[i].s[3];
+            //particles.at(i).m = h_pos[i].s[3];
         }
-        //std::cout << stateP(15) << std::endl;
+        std::cout << stateP(15) << std::endl;
+        stateToFile(writePr, outFile);
+        delete [] h_pos;
+        delete [] h_vel;
+        delete [] h_est;
+        delete [] h_tri;
 
     } catch (cl::Error error) {
         std::cerr << "Caught exception: " << error.what()
@@ -1229,7 +1375,7 @@ void PSystem::checkBoundaries()
                     osFile << boundary.vertices.at(0) <<  "\n "<< std::endl;
                     osFile << xPoint << "\n n0 \n " << n0 << "\n r \n " << particle.r << "\n r0 \n " << particle.r0 << "\n v\n " << particle.v << std::endl;
                     */
-
+                    // what is r0? should it be changed for next iteration of crossing check?
                     particle.v = particle.v - 2 * particle.v.dot(n0) * n0;
                     dr = particle.r - xPoint;
                     dr = dr - 2 * dr.dot(n0) * n0;
