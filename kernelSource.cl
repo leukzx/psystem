@@ -1,45 +1,113 @@
-float4 get_acc(__global float4 *pos, size_t id, size_t pnum)
+float4 get_acc_LJ(__global float4 *pos, size_t id, size_t pnum)
 {
     float4 r = pos[id]; // Position of the particle
     float4 a = (float4) 0.0f; // Acceleration
 
-    float rm = 1.0f; // Distance at which the potential reaches its minimum (F=0)
-    float rm6 = rm * rm * rm * rm * rm * rm;
-    float rm12 = rm6 * rm6;
-
     float epsilon = 1.0f;
 
+    float rm = 1.0f; // Distance at which the potential reaches its minimum (F=0)
+    float rm6 = pown(rm, 6);
+    float rm12 = pown(rm6, 2);
+
     float4 relr = (float4) 0.0f; // Relative radius-vector of p2 to p1
-    float dist2 = 0.0f; // Squared distance from p2 to p1
-    float dist7 = 0.0f;
-    float dist13 = 0.0f;
+    float d = 0.0f; // Distance from p2 to p1
+    float d7 = 0.0f;
+    float d13 = 0.0f;
 
     // Accleration of the particle
     for (int j = 0; j < id; ++j) {
         relr.xyz = pos[j].xyz - r.xyz;
-        dist2 = relr.x * relr.x + relr.y * relr.y + relr.z * relr.z;
-        dist7 = dist2 * dist2 * dist2 * sqrt(dist2);
-        dist13 = dist7 * dist7 / sqrt(dist2);
+        d = sqrt(relr.x * relr.x + relr.y * relr.y + relr.z * relr.z);
+        d7 = pown(d, 7);
+        d13 = pow (d7, 2) / d;
         a.xyz += 12
                * epsilon
-               * (rm6/dist7 - rm12/dist13)
-               * relr.xyz / sqrt(dist2) / r.w;
+               * (rm6 / d7 - rm12 / d13)
+               * relr.xyz / d;
     }
 
     for (int j = id + 1; j < pnum; ++j) {
         relr.xyz = pos[j].xyz - r.xyz;
-        dist2 = relr.x * relr.x + relr.y * relr.y + relr.z * relr.z;
-        dist7 = dist2 * dist2 * dist2 * sqrt(dist2);
-        dist13 = dist7 * dist7 / sqrt(dist2);
+        d = sqrt(relr.x * relr.x + relr.y * relr.y + relr.z * relr.z);
+        d7 = pown(d, 7);
+        d13 = pow (d7, 2) / d;
         a.xyz += 12
                * epsilon
-               * (rm6/dist7 - rm12/dist13)
-               * relr.xyz / sqrt(dist2) / r.w;
+               * (rm6 / d7 - rm12 / d13)
+               * relr.xyz / d;
     }
 
-    a.w = 0;
+    a.w = 0.0f;
+    a /= r.w;
 
     return a;
+}
+
+float get_energy_LJ_ptp(float4 *pos1, __global float4 *pos2)
+{
+    // Function calculates potential energy of a particle
+    // in L-J potential field of other particle.
+
+    float en = 0.0f; // Potential energy
+
+    float epsilon = 1.0f;
+
+    float rm = 1.0f; // Distance at which the potential reaches its minimum (F=0)
+    float rm_over_d6 = 0.0f;
+    float rm_over_d12 = 0.0f;
+
+    float4 relr = (float4) 0.0f; // Relative radius-vector of p1 to p2
+    float d = 0.0f; // Distance from p1 to p2
+
+    relr.xyz = (*pos1).xyz - (*pos2).xyz;
+    d = sqrt(relr.x * relr.x + relr.y * relr.y + relr.z * relr.z);
+    rm_over_d6 = pown(rm / d, 6);
+    rm_over_d12 = pow (rm_over_d6, 2);
+    en = epsilon * (rm_over_d12 - 2 * rm_over_d6);
+
+    return en;
+}
+
+
+__kernel void calcEpotLJCL(__global float4 *pos, __global float *epot)
+{
+    // Kernel calculates total potential energy of each particle
+
+    size_t id = get_global_id(0);
+    size_t pnum = get_global_size(0); // Number of particles (work-items)
+    float4 r = pos[id]; // Position of the particle
+
+    float en = 0.0f; // Potential energy
+
+    // Potential energy of the particle
+    for (int j = 0; j < id; ++j) {
+        en += get_energy_LJ_ptp(&r,  &pos[j]);
+   }
+
+    for (int j = id + 1; j < pnum; ++j) {
+        en += get_energy_LJ_ptp(&r, &pos[j]);
+    }
+
+    epot[id] = en;
+}
+
+__kernel void calcEkinCL(__global float4 *pos,
+                       __global float4 *vel,
+                       __global float *ekin)
+{
+    // Kernel calculates kinetic energy of each particle
+
+    size_t id = get_global_id(0);
+    size_t pnum = get_global_size(0); // Number of particles (work-items)
+
+    float m = pos[id].w; // Mass of the partice
+    float4 v = vel[id]; // Velocity of the particle
+
+    float en = 0.0f; // Kinetic energy the particle
+
+    en = 0.5f * m * (v.x * v.x + v.y * v.y + v.z * v.z);
+
+    ekin[id] = en;
 }
 
 __kernel void tsForwardEulerCL(__global float4 *pos,
@@ -57,11 +125,11 @@ __kernel void tsForwardEulerCL(__global float4 *pos,
     float4 a = acc[gid];
 
     // Particle's acceleration
-    //a = get_acc(pos, gid, pnum);
+    //a = get_acc_LJ(pos, gid, pnum);
 
     // New position and velocity
-    r.xyz = r.xyz + v.xyz * dt;
-    v.xyz = v.xyz + a.xyz * dt;
+    r.xyz += v.xyz * dt;
+    v.xyz += a.xyz * dt;
 
     newPos[gid] = r;
     vel[gid] = v;
@@ -69,7 +137,7 @@ __kernel void tsForwardEulerCL(__global float4 *pos,
 
 __kernel void calcAccCL(__global float4 *pos, __global float4 *acc)
 {
-    // This function calculates acceleration of particles in current position.
+    // Kernel This function calculates acceleration of particles in current position.
 
     size_t gid = get_global_id(0);
     size_t pnum = get_global_size(0); // Number of particles (work-items)
@@ -77,20 +145,22 @@ __kernel void calcAccCL(__global float4 *pos, __global float4 *acc)
 
     float4 a = (float4) 0.0f; // Acceleration
 
-    a = get_acc(pos, gid, pnum);
+    a = get_acc_LJ(pos, gid, pnum);
 
     acc[gid] = a;
 }
+
+
 
 __kernel void estimateDtCL(__global float4 *pos,
                            __global float4 *vel,
                            __global float4 *acc,
                            __global float *est)
 {
-    // Function estimates collision time of particle gid0 with
-    // particle gid1.
-    size_t gid0 = get_global_id(0);
-    size_t gid1 = get_global_id(1);
+    // Function estimates collision time of particle id0 with
+    // particle id1.
+    size_t id0 = get_global_id(0);
+    size_t id1 = get_global_id(1);
 
     float4 relPos;
     float4 relVel;
@@ -99,44 +169,44 @@ __kernel void estimateDtCL(__global float4 *pos,
     float d, v, a, t, est0, est1;
 
 
-    if (gid0 != gid1) {
+    if (id0 != id1) {
         est0 = FLT_MAX;
         est1 = FLT_MAX;
 
-        relPos = pos[gid0] - pos[gid1];
+        relPos = pos[id0] - pos[id1];
         relPos.w = 0;
         d =  sqrt(relPos.x * relPos.x
                 + relPos.y * relPos.y
                 + relPos.z * relPos.z);
 
-        relVel = vel[gid0] - vel[gid1];
-        if (dot(relPos, relVel) < 0) {
+        relVel = vel[id0] - vel[id1];
+        //if (dot(relPos, relVel) < 0) {
             v =  sqrt(relVel.x * relVel.x
                     + relVel.y * relVel.y
                     + relVel.z * relVel.z);
             est0 = d / v;
             if (isnan(est0)) {est0 = FLT_MAX;}
-        }
+        //}
 
-        relAcc = acc[gid0] - acc[gid1];
-        if (dot(relPos, relAcc) < 0) {
+        relAcc = acc[id0] - acc[id1];
+        //if (dot(relPos, relAcc) < 0) {
             a =  sqrt(relAcc.x * relAcc.x
                     + relAcc.y * relAcc.y
                     + relAcc.z * relAcc.z);
             est1 = sqrt(2 * d / a);
             if (isnan(est1)) {est1 = FLT_MAX;}
-        }
+        //}
         //est0 = (v != 0)?(d / v):FLT_MAX;
         //est1 = (a != 0)?(sqrt(2 * d / a)):FLT_MAX;
 
         t = (est0 < est1)?est0:est1;
     } else {
         t = FLT_MAX;
-        }
+    }
 
     size_t width = get_global_size(0);
 
-    est[gid0 * width + gid1] = t;
+    est[id0 * width + id1] = t;
 }
 
 __kernel void checkBoundariesCL(__global float4 *pos,
@@ -151,8 +221,8 @@ __kernel void checkBoundariesCL(__global float4 *pos,
     size_t gid = get_global_id(0);
     size_t vnum = vNum;
 
-    float4 r1 = newPos[gid];
-    float4 r0 = pos[gid];
+    float4 r1 = newPos[gid]; // New position
+    float4 r0 = pos[gid]; // Previous position
 
     float4 v = vel[gid];
     // Border vertices
@@ -178,7 +248,7 @@ __kernel void checkBoundariesCL(__global float4 *pos,
 
     // Particle displacement or direction vector, or segment
     dir = r1 - r0;
-    dir.w = 0;
+    //dir.w = 0;
 
     if (length(dir) == 0) {break;}
 
@@ -245,7 +315,7 @@ __kernel void checkBoundariesCL(__global float4 *pos,
         newPos[gid] = r1;
         vel[gid] = v;
         // Stop check other triangles. Do all checks again. (?)
-        //break;
+        break;
     }
 
     } while (flag); // Do loop until there are no new intersections

@@ -66,6 +66,9 @@ class PSystem {
 
     boundingBox bBox; //Axis-aligned bounding box
 
+    double Epot; // Potential energy
+    double Ekin; // Kinetic energy
+    double Etot; // Total energy
     double EtotInit; //Initial total energy
 
     //double G = 6.6740831E-20; // (kg*km/s)*(km/kg)^2 , Gravitational constant
@@ -140,9 +143,12 @@ class PSystem {
     double gravityEpot(const Particle& p1, const Particle& p2);
     double ljEpot(const Particle& p1, const Particle& p2);
     double EpotPtp(Particle&, Particle&);
-    double Epot();
-    double Ekin();
-    double Etot();
+    void calcEpot();
+    void calcEkin();
+    void calcEtot();
+    double getEpot();
+    double getEkin();
+    double getEtot();
     void EtotInitSet();
 
     // Integration methods

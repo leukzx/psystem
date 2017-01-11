@@ -404,13 +404,18 @@ double PSystem::estimateDeltaT()
     return dt;
 }
 
-double PSystem::Ekin()
+void PSystem::calcEkin()
 {
     double Ek = 0;
     for (auto& particle : particles) {
         Ek += particle.m * particle.v.squaredNorm() / 2;
     }
-    return Ek;
+    Ekin = Ek;
+}
+
+double PSystem::getEkin()
+{
+    return Ekin;
 }
 
 double PSystem::EpotPtp(Particle& p1, Particle& p2)
@@ -429,7 +434,7 @@ double PSystem::ljEpot(const Particle& p1, const Particle& p2)
     //Eigen::Vector3d r; // Radius-vector of p2 relative to p1
     double r, rmOverRpow6, rmOverRPow12; // Distance from p2 to p1
     double rm = 1; // The distance at which the potential reaches its minimum (F=0))
-    double epsilon = 1;
+    double epsilon = 1; // Depth of the potential well
 
     r = (p2.r - p1.r).norm();
     rmOverRpow6 = pow(rm/r, 6);
@@ -453,7 +458,7 @@ double PSystem::gravityEpot(const Particle& p1, const Particle& p2)
     return Epot;
 }
 
-double PSystem::Epot()
+void PSystem::calcEpot()
 {
     double Ep = 0;
     int pNum; //number of particles
@@ -465,17 +470,30 @@ double PSystem::Epot()
         }
     }
 
-    return Ep;
+    Epot = Ep;
 }
 
-double PSystem::Etot()
+double PSystem::getEpot()
 {
-    return Epot() + Ekin();
+    return Epot;
+}
+
+void PSystem::calcEtot()
+{
+    calcEpot();
+    calcEkin();
+    Etot = Epot + Ekin;
+}
+
+double PSystem::getEtot()
+{
+    return Etot;
 }
 
 void PSystem::EtotInitSet()
 {
-    EtotInit = Etot();
+    calcEtot();
+    EtotInit = Etot;
 }
 
 void PSystem::tsForwardEuler(double dt)
@@ -565,6 +583,7 @@ void PSystem::evolve()
         time += dt;
         writeTime += dt;
         nt++;
+        calcEtot();
         if (std::fabs(writeInterval - writeTime) < std::numeric_limits<double>::epsilon() * dt) {
             stateToFile(writePr, outFile);
             writeTime = 0;
@@ -742,8 +761,13 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
 
         cl_float dt  = (float) timeStep;
 
+        cl_float *h_ekin, *h_epot_lj;
+        h_ekin = new cl_float[vLen];
+        h_epot_lj = new cl_float[vLen];
+
         // Creates device buffers
-        cl::Buffer d_pos, d_vel, d_newPos, d_newVel, d_acc, d_est, d_tri;
+        cl::Buffer d_pos, d_vel, d_newPos, d_newVel, d_acc, d_est, d_tri,
+                   d_ekin, d_epot_lj;
         d_pos = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
         d_vel = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
         d_newPos = cl::Buffer(context, CL_MEM_READ_WRITE, vSize);
@@ -753,12 +777,16 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
                            vLen * vLen * sizeof(cl_float));
         d_tri = cl::Buffer(context, CL_MEM_READ_WRITE,
                            vNum * sizeof(cl_float4));
+        d_ekin = cl::Buffer(context, CL_MEM_READ_WRITE, vLen * sizeof(cl_float));
+        d_epot_lj = cl::Buffer(context, CL_MEM_READ_WRITE, vLen * sizeof(cl_float));
 
         // Creates a kernel objects
         cl::Kernel stepInTime(program, "tsForwardEulerCL");
         cl::Kernel estimateDt(program, "estimateDtCL");
         cl::Kernel calcAccCL(program, "calcAccCL");
         cl::Kernel checkBoundariesCL(program, "checkBoundariesCL");
+        cl::Kernel calcEkinCL(program, "calcEkinCL");
+        cl::Kernel calcEpotLJCL(program, "calcEpotLJCL");
 
         // Set stepInTime kernel arguments
         stepInTime.setArg(0, d_pos);
@@ -783,6 +811,15 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
         checkBoundariesCL.setArg(2, d_newPos);
         checkBoundariesCL.setArg(3, d_tri);
         checkBoundariesCL.setArg(4, vNum);
+
+        // Set calcEkinCL kernel arguments
+        calcEkinCL.setArg(0, d_pos);
+        calcEkinCL.setArg(1, d_vel);
+        calcEkinCL.setArg(2, d_ekin);
+
+        // Set calcEpotLJCL kernel arguments
+        calcEpotLJCL.setArg(0, d_pos);
+        calcEpotLJCL.setArg(1, d_epot_lj);
 
         // Creates queue with profiling enabled
         cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
@@ -819,10 +856,10 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
 
         std::cout << stateP(15) << std::endl;
 
-
-        for (size_t nt = 0; time + dt < endTime; time += dt, ++nt) {
-        //for (size_t nt = 0; nt < 1; time += dt, ++nt) {
-
+        double writeTime = 0.0; // Write time counter
+        EtotInitSet();
+        for (size_t nt = 0; time + dt <= endTime; ++nt) {
+            time += dt;
             // Move to new positions
             stepInTime.setArg(3, dt);
             queue.enqueueNDRangeKernel(stepInTime,
@@ -840,7 +877,55 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
             queue.enqueueCopyBuffer(d_newPos, d_pos, 0, 0, vSize, NULL, &event);
             event.wait();
 
-            // Get accelerations at current position
+            // Calculate total energy
+            queue.enqueueNDRangeKernel(calcEkinCL,
+                                       cl::NullRange, cl::NDRange(vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+            queue.enqueueNDRangeKernel(calcEpotLJCL,
+                                       cl::NullRange, cl::NDRange(vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+            queue.enqueueReadBuffer(d_ekin, CL_TRUE, 0,
+                                    vLen *  sizeof(cl_float), h_ekin);
+            queue.enqueueReadBuffer(d_epot_lj, CL_TRUE, 0,
+                                    vLen *  sizeof(cl_float), h_epot_lj);
+            Etot = 0;
+            Epot = 0;
+            Ekin = 0;
+            for (size_t i = 0; i < vLen; ++i) {
+                Epot += h_epot_lj[i];
+            }
+            Epot /= 2;
+            for (size_t i = 0; i < vLen; ++i) {
+                Ekin += h_ekin[i];
+            }
+            Etot = Ekin + Epot;
+
+            // Write data to file
+            writeTime += dt;
+            if (std::fabs(writeInterval - writeTime)
+                    < std::numeric_limits<float>::epsilon() * dt) {
+                // Copy state of particles to host
+                for (size_t i = 0; i < vLen; ++i) {
+                    particles.at(i).r0 = particles.at(i).r;
+                }
+                queue.enqueueReadBuffer(d_pos, CL_TRUE, 0, vSize, h_pos);
+                queue.enqueueReadBuffer(d_vel, CL_TRUE, 0, vSize, h_vel);
+
+                for (size_t i = 0; i < vLen; ++i) {
+                    for (unsigned int j = 0; j < particles.at(i).r.size();
+                                                                          ++j) {
+                         particles.at(i).r(j) = h_pos[i].s[j];
+                         particles.at(i).v(j) = h_vel[i].s[j];
+                    }
+                }
+                stateToFile(writePr, outFile);
+                writeTime = 0;
+            }
+            info(15);
+
+            // Get accelerations at new (it is now current) position
             queue.enqueueNDRangeKernel(calcAccCL,
                                        cl::NullRange, cl::NDRange(vLen),
                                        cl::NullRange, NULL, &event);
@@ -854,30 +939,13 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
             queue.enqueueReadBuffer(d_est, CL_TRUE, 0,
                                     vLen * vLen * sizeof(cl_float), h_est);
             dt = 0.01 * (*std::min_element(h_est, h_est + vLen * vLen));
-//            for (int i = 0 ; i < vLen * vLen; ++i) {
-//                std::cout << h_est[i] <<" " ;
-//            }
-//            std::cout << std::endl;
             dt = std::min({(double) dt, timeStep});
+
+
+            // Check dt for not to overshoot write time
+            if ((writeTime + dt) > writeInterval)
+                dt = writeInterval - writeTime;
             std::cout << nt << " " << dt <<" " << time <<std::endl;
-
-            for (size_t i = 0; i < vLen; ++i) {
-                particles.at(i).r0 = particles.at(i).r;
-            }
-            queue.enqueueReadBuffer(d_pos, CL_TRUE, 0, vSize, h_pos);
-            queue.enqueueReadBuffer(d_vel, CL_TRUE, 0, vSize, h_vel);
-
-            for (size_t i = 0; i < vLen; ++i) {
-                for (unsigned int j = 0; j < particles.at(i).r.size(); ++j) {
-                     particles.at(i).r(j) = h_pos[i].s[j];
-                     particles.at(i).v(j) = h_vel[i].s[j];
-                }
-                //particles.at(i).m = h_pos[i].s[3];
-            }
-            //checkBoundaries();
-            //stateToFile(writePr, outFile);
-
-
         }
         //std::cout << stateP(15) << std::endl;
 
@@ -900,10 +968,6 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
         }
         std::cout << stateP(15) << std::endl;
         stateToFile(writePr, outFile);
-        delete [] h_pos;
-        delete [] h_vel;
-        delete [] h_est;
-        delete [] h_tri;
 
     } catch (cl::Error error) {
         std::cerr << "Caught exception: " << error.what()
@@ -995,18 +1059,18 @@ std::string PSystem::stateE(int p)
     out << std::setprecision(p);
 
     out << "E_kin=";
-    out << Ekin();
+    out << getEkin();
     out << delim << "E_pot=";
-    out << Epot();
+    out << getEpot();
     out << delim << "E_tot=";
-    out << Etot();
+    out << getEtot();
     out << delim;
     if (EtotInit) {
         out << "(E_tot-E_init)/E_init=";
-        out << (Etot() - EtotInit)/EtotInit;
+        out << (getEtot() - EtotInit)/EtotInit;
     } else {
         out << "E_init=0\t(E_tot-E_init)=";
-        out << (Etot() - EtotInit);
+        out << (getEtot() - EtotInit);
     }
 
     return out.str();
