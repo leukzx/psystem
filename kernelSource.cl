@@ -197,7 +197,7 @@ __kernel void estimateDtCL(__global float4 *pos,
             if (isnan(est1)) {est1 = FLT_MAX;}
         //}
         //est0 = (v != 0)?(d / v):FLT_MAX;
-        //est1 = (a != 0)?(sqrt(2 * d / a)):FLT_MAX;
+        //est1 = (a != 0)?(sqrt(d / a)):FLT_MAX;
 
         t = (est0 < est1)?est0:est1;
     } else {

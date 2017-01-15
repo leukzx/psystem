@@ -74,9 +74,11 @@ class PSystem {
     //double G = 6.6740831E-20; // (kg*km/s)*(km/kg)^2 , Gravitational constant
     double G;
     double eps; // Softening term for force calculation
+    double timeStepInit; // Initial timestep
     double timeStep;
     double time;
     double endTime;
+    unsigned int stepCounter; // Number of steps
 
     //External force fields
     Eigen::Vector3d g; //Uniform field coeff F= mg

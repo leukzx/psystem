@@ -65,6 +65,7 @@ PSystem::PSystem() // Default constructor
 {
     G = 1;
     eps = 0; 
+    timeStepInit = DBL_MAX;
     timeStep = DBL_MAX;
     time = 0;
     endTime = 0;
@@ -83,6 +84,7 @@ PSystem::PSystem(PSystem &&rhs) // Move constructor
 {
     G = rhs.G;
     eps = rhs.eps;
+    timeStepInit = rhs.timeStepInit;
     timeStep = rhs.timeStep;
     time = rhs.time;
     endTime = rhs.endTime;
@@ -99,6 +101,7 @@ PSystem & PSystem::operator=(const PSystem &rhs) // Copy assignment
 {
     G = rhs.G;
     eps = rhs.eps;
+    timeStepInit = rhs.timeStepInit;
     timeStep = rhs.timeStep;
     time = rhs.time;
     endTime = rhs.endTime;
@@ -116,6 +119,7 @@ PSystem & PSystem::operator=(PSystem &&rhs) // Move assignment
 {
     G = rhs.G;
     eps = rhs.eps;
+    timeStepInit = rhs.timeStepInit;
     timeStep = rhs.timeStep;
     time = rhs.time;
     endTime = rhs.endTime;
@@ -149,6 +153,7 @@ PSystem PSystem::operator-(const PSystem &rhs)
     
     psystem.G = (*this).G;
     psystem.eps = (*this).eps;
+    psystem.timeStepInit = (*this).timeStepInit;
     psystem.timeStep = (*this).timeStep;
     psystem.time = (*this).time;
     psystem.endTime = (*this).endTime;
@@ -283,7 +288,7 @@ void PSystem::setRandom(Particle& particle)
                  + particle.r.cwiseProduct(bBox.maxVertex - bBox.minVertex);
 
     //set random speed
-    double lengthpct = 0.1; // max percent of psystem size per second to move
+    double lengthpct = 0.5; // max percent of psystem size per second to move
     //particle.v.setRandom();
     for (int i = 0; i < particle.v.size(); i++) {
         particle.v(i)= distribution(generator);
@@ -561,8 +566,8 @@ PSystem::methodFunctionPTR PSystem::methodNameToMethodPtr(std::string mName)
 void PSystem::evolve()
 {
     int nt = 0; //number of time steps
-    double dt = timeStep;
-    double timeStepInit = timeStep;
+    double dt = timeStepInit;
+
     int precision = 15;
     double writeTime = 0;
     methodFunctionPTR methodFunction = methodNameToMethodPtr(methodName);
@@ -759,7 +764,7 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
             }
         }
 
-        cl_float dt  = (float) timeStep;
+        double dt  = timeStepInit;
 
         cl_float *h_ekin, *h_epot_lj;
         h_ekin = new cl_float[vLen];
@@ -792,7 +797,7 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
         stepInTime.setArg(0, d_pos);
         stepInTime.setArg(1, d_vel);
         stepInTime.setArg(2, d_acc);
-        stepInTime.setArg(3, dt);
+        stepInTime.setArg(3, (cl_float) dt);
         stepInTime.setArg(4, d_newPos);
 
         // Set estimateDt kernel arguments
@@ -826,42 +831,48 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
 
         cl::Event event;
 
-        //Enqueue a command to write to a buffer object from host memory
+        // Enqueue a command to write to a buffer object from host memory
         queue.enqueueWriteBuffer(d_pos, CL_TRUE, 0, vSize, h_pos, NULL, &event);
         queue.enqueueWriteBuffer(d_vel, CL_TRUE, 0, vSize, h_vel, NULL, &event);
         queue.enqueueWriteBuffer(d_tri, CL_TRUE, 0,
                                  vNum * sizeof(cl_float4), h_tri, NULL, &event);
 
-        // Initial acceleration
-        queue.enqueueNDRangeKernel(calcAccCL,
-                                   cl::NullRange, cl::NDRange(vLen),
-                                   cl::NullRange, NULL, &event);
-        event.wait();
-
-        // Start time
-        cl_ulong start =
-                event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
-
-        // Initial timestep
-        queue.enqueueNDRangeKernel(estimateDt,
-                                   cl::NullRange, cl::NDRange(vLen, vLen),
-                                   cl::NullRange, NULL, &event);
-        event.wait();
-        queue.enqueueReadBuffer(d_est, CL_TRUE, 0,
-                                vLen * vLen * sizeof(cl_float), h_est);
-        std::cout << dt << std::endl;
-        dt = 0.01 * (*std::min_element(h_est, h_est + vLen * vLen));
-        dt = std::min({(double) dt, timeStep});
-        std::cout << dt << std::endl;
-
-        std::cout << stateP(15) << std::endl;
-
         double writeTime = 0.0; // Write time counter
+
         EtotInitSet();
-        for (size_t nt = 0; time + dt <= endTime; ++nt) {
+
+        do {
+            // Get accelerations at new (it is now current) position
+            queue.enqueueNDRangeKernel(calcAccCL,
+                                       cl::NullRange, cl::NDRange(vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+
+            // Estimate time step for next iteration
+            queue.enqueueNDRangeKernel(estimateDt,
+                                       cl::NullRange, cl::NDRange(vLen, vLen),
+                                       cl::NullRange, NULL, &event);
+            event.wait();
+            queue.enqueueReadBuffer(d_est, CL_TRUE, 0,
+                                    vLen * vLen * sizeof(cl_float), h_est);
+            dt = 0.01 * (*std::min_element(h_est, h_est + vLen * vLen));
+            dt = std::min({dt, timeStepInit});
+
+            // Check dt to not overshoot write time
+            if ((writeTime + dt) > writeInterval)
+                dt = writeInterval - writeTime;
+            // Check dt to not overshoot end time
+            if ((time + dt) > endTime)
+                dt = endTime - time;
+
+            // Increase time counter
             time += dt;
+
+            //Increase number of steps
+            ++stepCounter;
+
             // Move to new positions
-            stepInTime.setArg(3, dt);
+            stepInTime.setArg(3, (cl_float) dt);
             queue.enqueueNDRangeKernel(stepInTime,
                                        cl::NullRange, cl::NDRange(vLen),
                                        cl::NullRange, NULL, &event);
@@ -902,11 +913,15 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
             }
             Etot = Ekin + Epot;
 
+            timeStep = dt;
+
             // Write data to file
             writeTime += dt;
             if (std::fabs(writeInterval - writeTime)
+                    < std::numeric_limits<float>::epsilon() * dt
+                    || std::fabs(time - endTime)
                     < std::numeric_limits<float>::epsilon() * dt) {
-                // Copy state of particles to host
+                // Copy state of the system to host
                 for (size_t i = 0; i < vLen; ++i) {
                     particles.at(i).r0 = particles.at(i).r;
                 }
@@ -925,49 +940,16 @@ int PSystem::evolveOpenCL(int& deviceType, const char* kernelSourceFile)
             }
             info(15);
 
-            // Get accelerations at new (it is now current) position
-            queue.enqueueNDRangeKernel(calcAccCL,
-                                       cl::NullRange, cl::NDRange(vLen),
-                                       cl::NullRange, NULL, &event);
-            event.wait();
-
-            // Estimate time step for next iteration
-            queue.enqueueNDRangeKernel(estimateDt,
-                                       cl::NullRange, cl::NDRange(vLen, vLen),
-                                       cl::NullRange, NULL, &event);
-            event.wait();
-            queue.enqueueReadBuffer(d_est, CL_TRUE, 0,
-                                    vLen * vLen * sizeof(cl_float), h_est);
-            dt = 0.01 * (*std::min_element(h_est, h_est + vLen * vLen));
-            dt = std::min({(double) dt, timeStep});
+        } while (std::fabs(time - endTime)
+                 > std::numeric_limits<double>::epsilon() * dt);
 
 
-            // Check dt for not to overshoot write time
-            if ((writeTime + dt) > writeInterval)
-                dt = writeInterval - writeTime;
-            std::cout << nt << " " << dt <<" " << time <<std::endl;
-        }
-        //std::cout << stateP(15) << std::endl;
 
-        //End time
-        cl_ulong end=
-                event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-        double time = 1.e-9 * (end-start);
-        std::cout << "Time for kernel to execute: " << time << std::endl;
+//        cl_ulong end=
+//                event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+//        double time = 1.e-9 * (end-start);
+//        std::cout << "Time for kernel to execute: " << time << std::endl;
 
-
-        queue.enqueueReadBuffer(d_pos, CL_TRUE, 0, vSize, h_pos);
-        queue.enqueueReadBuffer(d_vel, CL_TRUE, 0, vSize, h_vel);
-
-        for (size_t i = 0; i < vLen; ++i) {
-            for (unsigned int j = 0; j < particles.at(i).r.size(); ++j) {
-                 particles.at(i).r(j) = h_pos[i].s[j];
-                 particles.at(i).v(j) = h_vel[i].s[j];
-            }
-            //particles.at(i).m = h_pos[i].s[3];
-        }
-        std::cout << stateP(15) << std::endl;
-        stateToFile(writePr, outFile);
 
     } catch (cl::Error error) {
         std::cerr << "Caught exception: " << error.what()
@@ -1012,7 +994,9 @@ std::string PSystem::parameters()
     //out << std::scientific;
     //out << std::setprecision(precision);
 
-    out << "timeStep = " << timeStep << std::endl;
+    out << "timeStepInit = " << timeStepInit << std::endl;
+    out << "stepCounter = " << stepCounter << std::endl;
+    out << "timeStepAvg = " << endTime / stepCounter<< std::endl;
     out << "endTime = " << endTime << std::endl;
     out << "eps = " << eps << std::endl;
     out << "G = " << G << std::endl;
@@ -1299,7 +1283,7 @@ int PSystem::readConfig(const char *fileName)
     }
     try{
         try {
-            timeStep = cfg.lookup("time_step");
+            timeStepInit = cfg.lookup("time_step");
         }
         catch(const libconfig::SettingNotFoundException &nfex) {
             std::cerr << "No 'time_step' setting in configuration file."
